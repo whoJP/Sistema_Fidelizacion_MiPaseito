@@ -89,17 +89,18 @@ export function RewardsPage() {
             return (
               <Card key={reward.id} className="reward">
                 <div className="row between">
-                  <strong className="reward-cost">{formatInt(reward.pointsCost)} puntos</strong>
+                  <strong className="reward-cost">
+                    {formatInt(reward.pointsCost)}
+                    <small>puntos</small>
+                  </strong>
                   {tier && (
                     <Badge tone={blocker === 'TIER' ? 'warning' : 'neutral'}>
-                      {blocker === 'TIER' && <Lock size={12} />} {tier.name}+
+                      {blocker === 'TIER' && <Lock size={12} aria-hidden />} {tier.name}+
                     </Badge>
                   )}
                 </div>
                 <h3>{rewardTitle(db, reward)}</h3>
-                <p className="small">
-                  <b>{whereLabel(reward.id)}</b>
-                </p>
+                <p className="reward-where">{whereLabel(reward.id)}</p>
                 {[...rewardConditions(db, reward), reward.description].filter(Boolean).map((c) => (
                   <p key={c} className="muted small">
                     {c}
@@ -184,10 +185,10 @@ export function RewardsPage() {
         <Modal title="Código de canje" onClose={() => setShowing(null)}>
           <div className="stack center">
             <div className="qr-box">
-              <QRCodeSVG value={showing.verificationToken} size={180} />
+              <QRCodeSVG value={showing.verificationToken} size={184} bgColor="#f3eee0" fgColor="#010102" />
             </div>
             <code className="token token-lg">{showing.verificationToken}</code>
-            <strong>{titleOf(showing.rewardId)}</strong>
+            <h3>{titleOf(showing.rewardId)}</h3>
             <p className="muted small">
               Preséntalo en {whereLabel(showing.rewardId)}. Vence el{' '}
               {formatDateTime(redemptionExpiresAt(db, showing.createdAt).toISOString())}.

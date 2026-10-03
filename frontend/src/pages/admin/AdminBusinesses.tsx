@@ -167,9 +167,9 @@ export function AdminBusinesses() {
                       {db.businessCategories
                         .filter((c) => c.businessId === b.id)
                         .map((c) => categoryLabel(db, c.categoryId))
-                        .join(', ') || '—'}
+                        .join(', ') || '-'}
                     </td>
-                    <td className="small">{[b.floor && floorLabel(b.floor), b.sector, b.localNumber].filter(Boolean).join(' · ') || '—'}</td>
+                    <td className="small">{[b.floor && floorLabel(b.floor), b.sector, b.localNumber].filter(Boolean).join(' · ') || '-'}</td>
                     <td>{db.businessMembers.filter((m) => m.businessId === b.id && m.status === 'ACTIVE').length}</td>
                     <td>
                       <StatusBadge status={b.status} />

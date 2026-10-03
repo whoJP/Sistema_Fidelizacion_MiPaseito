@@ -61,7 +61,9 @@ export function RegisterPurchasePage() {
       <div className="detail-grid">
         <div className="stack">
           <Card>
-            <h2>1. Identificar cliente</h2>
+            <h2 className="card-title">
+              <span className="step-num">1</span> Identificar cliente
+            </h2>
             {customer ? (
               <div className="list-row">
                 <div className="row gap">
@@ -93,7 +95,9 @@ export function RegisterPurchasePage() {
           </Card>
 
           <Card className={customer ? '' : 'disabled'}>
-            <h2>2. Monto de la compra</h2>
+            <h2 className="card-title">
+              <span className="step-num">2</span> Monto de la compra
+            </h2>
             <form className="stack" onSubmit={submit}>
               <Field label="Monto (Bs)">
                 <input
@@ -157,7 +161,7 @@ export function RegisterPurchasePage() {
                     {customer?.firstName} ganó <b>{formatInt(result.pointsEarned)} puntos</b> y <b>{formatInt(result.statusEarned)} puntos de nivel</b>.
                   </p>
                   <div className="row gap wrap">
-                    {result.discovered && <Badge tone="success">¡Nuevo sello en su Pasaporte!</Badge>}
+                    {result.discovered && <Badge tone="success">Nuevo sello en su Pasaporte</Badge>}
                     {result.completedMissions.map((m) => (
                       <Badge key={m.id} tone="accent">
                         Misión completada: {m.name}

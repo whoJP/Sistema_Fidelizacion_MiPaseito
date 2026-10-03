@@ -152,7 +152,7 @@ export function MerchantRewardsPage() {
                       {rewardRedeemedCount(db, r.id)} / {r.stock ?? '∞'}
                     </td>
                     <td className="small">
-                      {r.startsAt || r.endsAt ? `${r.startsAt ? formatDate(r.startsAt) : '…'} – ${r.endsAt ? formatDate(r.endsAt) : '…'}` : 'Sin límite'}
+                      {r.startsAt || r.endsAt ? `${r.startsAt ? formatDate(r.startsAt) : '…'} - ${r.endsAt ? formatDate(r.endsAt) : '…'}` : 'Sin límite'}
                     </td>
                     <td>
                       <StatusBadge status={r.status} />

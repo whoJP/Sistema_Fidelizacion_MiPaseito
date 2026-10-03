@@ -90,7 +90,7 @@ export function AdminPromotions() {
                     </td>
                     <td>{p.type === 'POINTS_MULTIPLIER' ? `Puntos ×${p.value}` : `+${formatInt(p.value)} puntos`}</td>
                     <td className="small">
-                      {formatDate(p.startsAt)} – {formatDate(p.endsAt)}
+                      {formatDate(p.startsAt)} - {formatDate(p.endsAt)}
                     </td>
                     <td className="small">{scopeSummary(db, promotionScope(db, p.id))}</td>
                     <td className="num">

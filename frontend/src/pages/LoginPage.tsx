@@ -1,5 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import { Navigate, useNavigate } from 'react-router-dom'
+import { ArrowUpRight } from 'lucide-react'
 import { ApiError, api, type SessionPayload } from '../data/api'
 import { DEMO_ACCOUNTS, DEMO_PASSWORD } from '../data/demoAccounts'
 import { signIn, signOut, useSession } from '../session'
@@ -32,7 +33,7 @@ export function LoginPage() {
   const onSubmit = (e: FormEvent) => {
     e.preventDefault()
     if (mode === 'login') return attempt(() => api.login(email, password))
-    return attempt(() => api.register({ email, password, ...form }), '¡Bienvenido a Paseo Points!')
+    return attempt(() => api.register({ email, password, ...form }), 'Bienvenido a Paseo Points')
   }
 
   const resetDemo = async () => {
@@ -51,27 +52,53 @@ export function LoginPage() {
 
   return (
     <div className="auth">
-      <div className="auth-hero">
+      <section className="auth-hero">
         <div className="brand brand-lg">
-          <span className="brand-mark">P</span>
+          <span className="brand-mark" aria-hidden>
+            P
+          </span>
           <span className="brand-name">
             Paseo <b>Points</b>
           </span>
         </div>
-        <h1>Cada visita a Paseo Aranjuez suma.</h1>
-        <p>
-          Acumula puntos en las tiendas, el Paseo de Comidas y la terraza El 4to (Bs 1 = 1 punto), sube de nivel, asiste a
-          eventos, completa misiones, gana insignias y descubre nuevos lugares con tu Pasaporte.
-        </p>
-        <p className="small">Av. América #488 esq. Pantaleón Dalence · Cochabamba</p>
-      </div>
 
-      <div className="auth-panel">
-        <div className="tabs">
-          <button className={mode === 'login' ? 'tab tab-active' : 'tab'} onClick={() => setMode('login')}>
+        <div className="auth-copy">
+          <h1>
+            Cada visita a Paseo Aranjuez <em>suma.</em>
+          </h1>
+          <p>Acumula puntos en tiendas, el Paseo de Comidas y la terraza El 4to. Sube de nivel y canjea recompensas.</p>
+          <div className="auth-pillars">
+            <div>
+              <strong>Un punto</strong>
+              <span>por cada boliviano</span>
+            </div>
+            <div>
+              <strong>Cuatro niveles</strong>
+              <span>de Bronce a Platinum</span>
+            </div>
+            <div>
+              <strong>Pasaporte</strong>
+              <span>un sello por cada local</span>
+            </div>
+          </div>
+        </div>
+
+        <p className="auth-address">Av. América #488 esq. Pantaleón Dalence, Cochabamba</p>
+      </section>
+
+      <section className="auth-panel" aria-label="Acceso">
+        <h2>{mode === 'login' ? 'Bienvenido de vuelta' : 'Crea tu cuenta'}</h2>
+
+        <div className="tabs" role="tablist">
+          <button role="tab" aria-selected={mode === 'login'} className={mode === 'login' ? 'tab tab-active' : 'tab'} onClick={() => setMode('login')}>
             Ingresar
           </button>
-          <button className={mode === 'register' ? 'tab tab-active' : 'tab'} onClick={() => setMode('register')}>
+          <button
+            role="tab"
+            aria-selected={mode === 'register'}
+            className={mode === 'register' ? 'tab tab-active' : 'tab'}
+            onClick={() => setMode('register')}
+          >
             Crear cuenta
           </button>
         </div>
@@ -83,13 +110,13 @@ export function LoginPage() {
           {mode === 'register' && (
             <div className="grid-2">
               <Field label="Nombre">
-                <input required value={form.firstName} onChange={(e) => setForm({ ...form, firstName: e.target.value })} />
+                <input required value={form.firstName} onChange={(e) => setForm({ ...form, firstName: e.target.value })} autoComplete="given-name" />
               </Field>
               <Field label="Apellido">
-                <input required value={form.lastName} onChange={(e) => setForm({ ...form, lastName: e.target.value })} />
+                <input required value={form.lastName} onChange={(e) => setForm({ ...form, lastName: e.target.value })} autoComplete="family-name" />
               </Field>
               <Field label="Teléfono (opcional)">
-                <input type="tel" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
+                <input type="tel" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} autoComplete="tel" />
               </Field>
             </div>
           )}
@@ -109,18 +136,23 @@ export function LoginPage() {
         </form>
 
         <div className="demo-accounts">
-          <span className="muted small">Cuentas de demostración (contraseña {DEMO_PASSWORD})</span>
+          <span className="field-label">
+            Cuentas de demostración · contraseña <code className="no-caps">{DEMO_PASSWORD}</code>
+          </span>
           {DEMO_ACCOUNTS.map((a) => (
             <button key={a.email} className="demo-account" disabled={busy} onClick={() => attempt(() => api.login(a.email, DEMO_PASSWORD))}>
-              <strong>{a.email}</strong>
-              <span>{a.label}</span>
+              <span>
+                <strong>{a.email}</strong>
+                <small>{a.label}</small>
+              </span>
+              <ArrowUpRight size={16} aria-hidden />
             </button>
           ))}
           <button className="btn btn-ghost btn-sm" disabled={busy} onClick={resetDemo}>
             Restablecer datos de demo
           </button>
         </div>
-      </div>
+      </section>
       <Toaster />
     </div>
   )

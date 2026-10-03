@@ -3,7 +3,7 @@ import { useDb } from '../../data/store'
 import { evaluateMission, isGlobalScope, liveMissions, missionScope } from '../../domain/loyalty'
 import { formatDate, formatInt, formatMoney, MISSION_TYPE_LABELS } from '../../lib/format'
 import { useUser } from '../../session'
-import { Badge, Card, Empty, PageHeader, Progress } from '../../components/ui'
+import { Badge, Card, Empty, PageHeader, ProgressRing } from '../../components/ui'
 
 const prize = (points: number, status: number) =>
   [points > 0 && `+${formatInt(points)} puntos`, status > 0 && `+${formatInt(status)} de nivel`].filter(Boolean).join(' · ')
@@ -37,27 +37,40 @@ export function MissionsPage() {
 
       {active.length === 0 && done.length === 0 && <Empty>No hay misiones activas por ahora.</Empty>}
 
-      <div className="cards-grid">
+      <div className="missions-grid">
         {active.map(({ mission, progress }) => {
           const scope = scopeLabel(mission.id)
+          const money = mission.type === 'TOTAL_PURCHASE_AMOUNT'
           return (
             <Card key={mission.id} className="mission">
-              <div className="row between">
-                <Badge tone="accent">{MISSION_TYPE_LABELS[mission.type]}</Badge>
-                <span className="small muted">hasta {formatDate(mission.endsAt)}</span>
+              <div className="mission-top">
+                <ProgressRing value={progress} max={mission.goal} />
+                <div className="mission-heading">
+                  <Badge tone="accent">{MISSION_TYPE_LABELS[mission.type]}</Badge>
+                  <h3>{mission.name}</h3>
+                  <p className="mission-count">
+                    <strong>{money ? formatMoney(progress) : formatInt(progress)}</strong>
+                    <span> de {money ? formatMoney(mission.goal) : formatInt(mission.goal)}</span>
+                  </p>
+                </div>
               </div>
-              <h3>{mission.name}</h3>
-              {mission.description && <p className="muted small">{mission.description}</p>}
-              {scope && <p className="small">Aplica en: {scope}</p>}
-              <div className="row between small">
-                <span>
-                  {mission.type === 'TOTAL_PURCHASE_AMOUNT'
-                    ? `${formatMoney(progress)} / ${formatMoney(mission.goal)}`
-                    : `${formatInt(progress)} / ${formatInt(mission.goal)}`}
-                </span>
-                <span className="muted">{prize(mission.rewardPoints, mission.rewardStatus)}</span>
-              </div>
-              <Progress value={progress} max={mission.goal} />
+              {mission.description && <p className="mission-desc">{mission.description}</p>}
+              <dl className="mission-facts">
+                <div>
+                  <dt>Premio</dt>
+                  <dd className="gold">{prize(mission.rewardPoints, mission.rewardStatus)}</dd>
+                </div>
+                {scope && (
+                  <div>
+                    <dt>Aplica en</dt>
+                    <dd>{scope}</dd>
+                  </div>
+                )}
+                <div>
+                  <dt>Vence</dt>
+                  <dd>{formatDate(mission.endsAt)}</dd>
+                </div>
+              </dl>
             </Card>
           )
         })}

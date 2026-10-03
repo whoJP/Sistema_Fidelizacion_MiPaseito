@@ -21,6 +21,7 @@ import {
   ReceiptText,
   ScanLine,
   Settings,
+  ShieldCheck,
   Store,
   Target,
   UserRound,
@@ -111,13 +112,32 @@ export function AppShell() {
     })),
   ]
 
+  const role = context === 'admin' ? 'admin' : workplace ? 'merchant' : 'customer'
+  const contextLabel = role === 'admin' ? 'Consola interna' : workplace ? workplace.business.name : 'Cliente'
+
   return (
-    <div className={`shell shell-${context.split(':')[0]}`}>
+    <div className={`shell shell-${role}`}>
+      <a href="#main" className="skip-link">
+        Saltar al contenido
+      </a>
       <aside className="sidebar">
         <div className="brand">
-          <span className="brand-mark">P</span>
-          <span className="brand-name">
-            Paseo <b>Points</b>
+          <span className="brand-mark" aria-hidden>
+            {role === 'admin' ? 'PA' : 'P'}
+          </span>
+          <span className="brand-text">
+            <span className="brand-name">
+              {role === 'admin' ? (
+                <>
+                  Paseo <b>Aranjuez</b>
+                </>
+              ) : (
+                <>
+                  Paseo <b>Points</b>
+                </>
+              )}
+            </span>
+            <span className="brand-context">{contextLabel}</span>
           </span>
         </div>
 
@@ -138,10 +158,10 @@ export function AppShell() {
           </label>
         )}
 
-        <nav className="nav">
+        <nav className="nav" aria-label="Navegación principal">
           {nav.map((item) => (
             <NavLink key={item.to} to={item.to} end={item.end} className="nav-link">
-              <item.icon size={18} />
+              <item.icon size={18} aria-hidden />
               <span>{item.label}</span>
             </NavLink>
           ))}
@@ -149,7 +169,9 @@ export function AppShell() {
 
         <div className="sidebar-foot">
           <div className="me">
-            <span className="avatar">{user.firstName[0]}</span>
+            <span className="avatar" aria-hidden>
+              {user.firstName[0]}
+            </span>
             <div>
               <strong>
                 {user.firstName} {user.lastName}
@@ -171,7 +193,21 @@ export function AppShell() {
         </div>
       </aside>
 
-      <main className="content">
+      <main className="content" id="main">
+        {role !== 'customer' && (
+          <div className="staff-bar">
+            <span className="staff-org">
+              <ShieldCheck size={15} aria-hidden />
+              Paseo Aranjuez
+            </span>
+            <span className="staff-scope">
+              {role === 'admin' ? 'Administración del programa' : `Socio comercial · ${workplace!.business.name}`}
+            </span>
+            <span className="staff-role">
+              {role === 'admin' ? 'Administrador' : MEMBER_ROLE_LABELS[workplace!.membership.role]}
+            </span>
+          </div>
+        )}
         <Outlet />
       </main>
       <Toaster />

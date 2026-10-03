@@ -80,7 +80,7 @@ function CheckInModal({ event, onClose }: { event: PaseoEvent; onClose: () => vo
             </button>
           </form>
         ) : (
-          <p className="muted">Los ingresos solo se registran mientras el evento está en curso ({formatDateTime(event.startsAt)} – {formatDateTime(event.endsAt)}).</p>
+          <p className="muted">Los ingresos solo se registran mientras el evento está en curso ({formatDateTime(event.startsAt)} - {formatDateTime(event.endsAt)}).</p>
         )}
 
         {last && (
@@ -190,7 +190,7 @@ export function AdminEvents() {
                         <div className="muted small">{[e.location, e.description].filter(Boolean).join(' · ')}</div>
                       </td>
                       <td className="small">
-                        {formatDateTime(e.startsAt)} – {formatDateTime(e.endsAt)}
+                        {formatDateTime(e.startsAt)} - {formatDateTime(e.endsAt)}
                         <div>
                           <Badge tone={when === 'En curso' ? 'success' : 'neutral'}>{when}</Badge>
                         </div>

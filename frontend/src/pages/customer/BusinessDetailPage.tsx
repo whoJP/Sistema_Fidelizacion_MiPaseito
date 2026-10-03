@@ -4,7 +4,7 @@ import { useDb } from '../../data/store'
 import { businessCategoryIds, discoveredBusinessIds, promotionsForBusiness, rewardTitle, visibleRewards } from '../../domain/loyalty'
 import { DAY_LABELS, DAYS_IN_ORDER, formatInt, formatMoney } from '../../lib/format'
 import { useUser } from '../../session'
-import { Badge, Card, Empty, PageHeader } from '../../components/ui'
+import { Badge, Card, CardHead, Empty, MoreLink, PageHeader } from '../../components/ui'
 import { businessLocation } from './DirectoryPage'
 
 export function BusinessDetailPage() {
@@ -67,9 +67,7 @@ export function BusinessDetailPage() {
 
           {promos.length > 0 && (
             <Card>
-              <h2 className="row gap">
-                <Sparkles size={18} className="accent" /> Promociones
-              </h2>
+              <CardHead icon={Sparkles} title="Promociones" />
               <ul className="list">
                 {promos.map((p) => (
                   <li key={p.id} className="list-row">
@@ -106,9 +104,7 @@ export function BusinessDetailPage() {
 
         <div className="stack">
           <Card>
-            <h2 className="row gap">
-              <Clock size={18} /> Horario
-            </h2>
+            <CardHead icon={Clock} title="Horario" />
             {schedules.length === 0 ? (
               <p className="muted small">Horario no publicado.</p>
             ) : (
@@ -118,7 +114,7 @@ export function BusinessDetailPage() {
                   return (
                     <li key={day} className={day === today ? 'today' : ''}>
                       <span>{DAY_LABELS[day]}</span>
-                      <span>{!s ? '—' : s.isClosed ? 'Cerrado' : `${s.openTime ?? '?'} – ${s.closeTime ?? '?'}`}</span>
+                      <span>{!s ? 'Sin horario' : s.isClosed ? 'Cerrado' : `${s.openTime ?? '?'} - ${s.closeTime ?? '?'}`}</span>
                     </li>
                   )
                 })}
@@ -136,9 +132,7 @@ export function BusinessDetailPage() {
                   </li>
                 ))}
               </ul>
-              <Link to="/app/rewards" className="small">
-                Ir a recompensas →
-              </Link>
+              <MoreLink to="/app/rewards">Ir a recompensas</MoreLink>
             </Card>
           )}
         </div>

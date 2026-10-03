@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { ChevronLeft, ChevronRight } from 'lucide-react'
 import { useDb } from '../../data/store'
 import { rewardTitle, type SettingKey } from '../../domain/loyalty'
 import { FRAUD_TYPE_LABELS, formatDateTime, formatInt, formatMoney, fullName, signed } from '../../lib/format'
@@ -224,10 +225,10 @@ export function AdminAudit() {
               </span>
               <div className="row gap">
                 <button className="btn btn-ghost btn-sm" disabled={current === 0} onClick={() => setPage(current - 1)}>
-                  ← Anterior
+                  <ChevronLeft size={15} aria-hidden /> Anterior
                 </button>
                 <button className="btn btn-ghost btn-sm" disabled={current >= pages - 1} onClick={() => setPage(current + 1)}>
-                  Siguiente →
+                  Siguiente <ChevronRight size={15} aria-hidden />
                 </button>
               </div>
             </div>

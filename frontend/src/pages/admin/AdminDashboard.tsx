@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom'
+import { ArrowUpRight } from 'lucide-react'
 import { useDb } from '../../data/store'
 import { activeTiers, statusTotal, tierForStatus } from '../../domain/loyalty'
 import { formatInt, formatMoney, fullName, plural } from '../../lib/format'
@@ -52,8 +53,8 @@ export function AdminDashboard() {
         title="Resumen del programa"
         subtitle="Últimos 30 días, calculado en tiempo real."
         actions={
-          <Link className="btn btn-ghost" to="/admin/metrics">
-            Ver métricas detalladas →
+          <Link className="btn" to="/admin/metrics">
+            Ver métricas detalladas <ArrowUpRight size={16} aria-hidden />
           </Link>
         }
       />

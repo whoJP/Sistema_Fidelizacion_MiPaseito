@@ -46,12 +46,15 @@ export function PassportPage() {
         </Card>
       )}
 
+      <h2 className="section-title">Sellos</h2>
       <div className="stamps">
         {businesses.map((b) => {
           const found = discoveries.find((d) => d.businessId === b.id)
           return (
             <Link key={b.id} to={`/app/directory/${b.id}`} className={`stamp ${found ? 'stamp-on' : ''}`}>
-              <Stamp size={22} />
+              <span className="stamp-seal" aria-hidden>
+                <Stamp size={22} />
+              </span>
               <strong>{b.name}</strong>
               <span className="small">{found ? formatDate(found.discoveredAt) : 'Sin sello'}</span>
             </Link>

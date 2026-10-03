@@ -1,5 +1,6 @@
 import { useEffect, useSyncExternalStore, type ReactNode } from 'react'
-import { X } from 'lucide-react'
+import { Link } from 'react-router-dom'
+import { ArrowUpRight, X, type LucideIcon } from 'lucide-react'
 import { ApiError, api } from '../data/api'
 import type { CommandInput, CommandName, CommandResult } from '../data/commands'
 import { applySnapshot } from '../data/store'
@@ -59,10 +60,21 @@ export async function run<K extends CommandName>(
 
 // ---------- Layout primitives ----------
 
-export function PageHeader({ title, subtitle, actions }: { title: string; subtitle?: ReactNode; actions?: ReactNode }) {
+export function PageHeader({
+  title,
+  subtitle,
+  actions,
+  eyebrow,
+}: {
+  title: string
+  subtitle?: ReactNode
+  actions?: ReactNode
+  eyebrow?: string
+}) {
   return (
     <header className="page-header">
       <div>
+        {eyebrow && <span className="page-eyebrow">{eyebrow}</span>}
         <h1>{title}</h1>
         {subtitle && <p className="muted">{subtitle}</p>}
       </div>
@@ -75,6 +87,25 @@ export function Card({ children, className = '' }: { children: ReactNode; classN
   return <section className={`card ${className}`}>{children}</section>
 }
 
+export function MoreLink({ to, children }: { to: string; children: ReactNode }) {
+  return (
+    <Link className="link-arrow" to={to}>
+      {children} <ArrowUpRight size={15} aria-hidden />
+    </Link>
+  )
+}
+
+export function CardHead({ icon: Icon, title, action }: { icon?: LucideIcon; title: string; action?: ReactNode }) {
+  return (
+    <div className="card-head">
+      <h2 className="card-title">
+        {Icon && <Icon size={18} aria-hidden />} {title}
+      </h2>
+      {action}
+    </div>
+  )
+}
+
 export function Badge({ children, tone = 'neutral' }: { children: ReactNode; tone?: 'neutral' | 'success' | 'warning' | 'danger' | 'accent' }) {
   return <span className={`badge badge-${tone}`}>{children}</span>
 }
@@ -84,6 +115,32 @@ export function Progress({ value, max }: { value: number; max: number }) {
   return (
     <div className="progress" role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100}>
       <div className="progress-bar" style={{ width: `${pct}%` }} />
+    </div>
+  )
+}
+
+export function ProgressRing({ value, max, size = 64 }: { value: number; max: number; size?: number }) {
+  const pct = max > 0 ? Math.min(100, Math.round((value / max) * 100)) : 0
+  const stroke = 5
+  const r = (size - stroke) / 2
+  const c = 2 * Math.PI * r
+  return (
+    <div className="ring" style={{ width: size, height: size }} role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100}>
+      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} aria-hidden="true">
+        <circle className="ring-track" cx={size / 2} cy={size / 2} r={r} strokeWidth={stroke} />
+        {pct > 0 && (
+          <circle
+            className="ring-bar"
+            cx={size / 2}
+            cy={size / 2}
+            r={r}
+            strokeWidth={stroke}
+            strokeDasharray={c}
+            strokeDashoffset={c - (c * pct) / 100}
+          />
+        )}
+      </svg>
+      <span className="ring-value">{pct}%</span>
     </div>
   )
 }
@@ -124,7 +181,7 @@ export function Modal({ title, onClose, children, wide }: { title: string; onClo
         <div className="modal-head">
           <h2>{title}</h2>
           <button className="icon-btn" onClick={onClose} aria-label="Cerrar">
-            <X size={18} />
+            <X size={20} />
           </button>
         </div>
         <div className="modal-body">{children}</div>

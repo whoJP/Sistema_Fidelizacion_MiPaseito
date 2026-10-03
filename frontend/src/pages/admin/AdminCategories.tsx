@@ -82,7 +82,7 @@ export function AdminCategories() {
                 value={draft.parentId ?? ''}
                 onChange={(e) => setDraft({ ...draft, parentId: e.target.value ? Number(e.target.value) : null })}
               >
-                <option value="">— Ninguna (categoría principal) —</option>
+                <option value="">Ninguna (categoría principal)</option>
                 {roots
                   .filter((r) => r.id !== draft.id)
                   .map((r) => (

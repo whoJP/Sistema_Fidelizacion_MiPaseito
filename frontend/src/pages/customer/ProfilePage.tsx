@@ -58,8 +58,8 @@ export function ProfilePage() {
       <PageHeader title="Mi perfil" subtitle="Tus datos, tus insignias y los eventos donde puedes ganar más." />
 
       <div className="detail-grid">
-        <Card>
-          <div className="row between">
+        <Card className="card-gold">
+          <div className="row between align-start">
             <div>
               <h2>
                 {user.firstName} {user.lastName}
@@ -92,7 +92,7 @@ export function ProfilePage() {
                 <h3>{e.name}</h3>
                 {e.description && <p className="muted small">{e.description}</p>}
                 <div className="small row gap">
-                  <CalendarDays size={14} /> {formatDateTime(e.startsAt)} – {formatDateTime(e.endsAt)}
+                  <CalendarDays size={14} aria-hidden /> {formatDateTime(e.startsAt)} - {formatDateTime(e.endsAt)}
                 </div>
                 {e.location && (
                   <div className="small row gap">

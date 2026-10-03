@@ -48,7 +48,7 @@ export function ValidateRedemptionPage() {
         <div className="stack">
           <Card>
             <form className="stack" onSubmit={submit}>
-              <Field label="Código de canje" hint="El cliente lo encuentra en Recompensas → Mis canjes.">
+              <Field label="Código de canje" hint="El cliente lo encuentra en Recompensas, sección Mis canjes.">
                 <input
                   className="mono"
                   value={token}

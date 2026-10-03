@@ -112,11 +112,11 @@ export function AdminUsers() {
                     <td className="small">
                       {worksAt(u.id)
                         .map((m) => `${db.businesses.find((b) => b.id === m.businessId)?.name} (${MEMBER_ROLE_LABELS[m.role]})`)
-                        .join(', ') || '—'}
+                        .join(', ') || '-'}
                     </td>
-                    <td className="num">{u.role === 'CUSTOMER' ? formatInt(pointsBalance(db, u.id)) : '—'}</td>
-                    <td className="num">{u.role === 'CUSTOMER' ? formatInt(status) : '—'}</td>
-                    <td>{u.role === 'CUSTOMER' && tier ? <span className={`tier-chip tier-${tier.name.toLowerCase()}`}>{tier.name}</span> : '—'}</td>
+                    <td className="num">{u.role === 'CUSTOMER' ? formatInt(pointsBalance(db, u.id)) : '-'}</td>
+                    <td className="num">{u.role === 'CUSTOMER' ? formatInt(status) : '-'}</td>
+                    <td>{u.role === 'CUSTOMER' && tier ? <span className={`tier-chip tier-${tier.name.toLowerCase()}`}>{tier.name}</span> : '-'}</td>
                     <td>
                       <StatusBadge status={u.status} />
                     </td>

@@ -68,7 +68,7 @@ export function CatalogPage() {
                 </div>
                 <div className="row gap">
                   {!item.isAvailable && <Badge>No disponible</Badge>}
-                  <span>{item.price !== null ? formatMoney(item.price) : '—'}</span>
+                  <span>{item.price !== null ? formatMoney(item.price) : 'Sin precio'}</span>
                   <button className="btn btn-ghost btn-sm" onClick={() => setDraft(toDraft(item))}>
                     Editar
                   </button>

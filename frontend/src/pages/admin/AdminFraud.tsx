@@ -65,7 +65,7 @@ export function AdminFraud() {
             <Badge tone="danger">Alto · 80+</Badge> revisa primero
           </span>
           <span>
-            <Badge tone="warning">Medio · 60–79</Badge> revisa hoy
+            <Badge tone="warning">Medio · 60-79</Badge> revisa hoy
           </span>
           <span>
             <Badge>Bajo · menos de 60</Badge> aviso informativo
@@ -103,7 +103,7 @@ export function AdminFraud() {
                     </span>
                     {tx && (
                       <span className="small">
-                        Compra de {formatMoney(tx.amount)} — {held ? 'puntos retenidos' : tx.status === 'COMPLETED' ? 'puntos acreditados' : 'anulada'}
+                        Compra de {formatMoney(tx.amount)}: {held ? 'puntos retenidos' : tx.status === 'COMPLETED' ? 'puntos acreditados' : 'anulada'}
                       </span>
                     )}
                     {red && (

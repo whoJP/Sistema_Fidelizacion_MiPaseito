@@ -109,7 +109,7 @@ export function AdminMissions() {
                       {formatInt(m.rewardPoints)} puntos · {formatInt(m.rewardStatus)} de nivel
                     </td>
                     <td className="small">
-                      {formatDate(m.startsAt)} – {formatDate(m.endsAt)}
+                      {formatDate(m.startsAt)} - {formatDate(m.endsAt)}
                     </td>
                     <td className="small">{scopeSummary(db, missionScope(db, m.id))}</td>
                     <td className="num">{db.missionProgress.filter((p) => p.missionId === m.id && p.completedAt).length}</td>

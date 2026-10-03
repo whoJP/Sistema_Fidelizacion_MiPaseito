@@ -43,6 +43,19 @@ function problemOf(err: unknown): CameraState {
   return 'failed'
 }
 
+/** qr-scanner reports every getUserMedia failure as "Camera not found", so ask the browser directly for the real cause. */
+async function diagnose(err: unknown): Promise<CameraState> {
+  const state = problemOf(err)
+  if (state !== 'missing') return state
+  try {
+    const stream = await navigator.mediaDevices.getUserMedia({ video: true })
+    stream.getTracks().forEach((t) => t.stop())
+    return 'failed'
+  } catch (probeErr) {
+    return problemOf(probeErr)
+  }
+}
+
 /**
  * Live QR reader with the device camera (no photos from the gallery: the code must be scanned at the counter).
  * Browsers only open the camera on https or localhost.
@@ -96,8 +109,10 @@ export function QrReader({ onScan, paused = false, label = 'Apunta la cámara al
         setState('live')
         setHasFlash(await scanner.hasFlash().catch(() => false))
       })
-      .catch((err: unknown) => {
-        if (!cancelled) setState(problemOf(err))
+      .catch(async (err: unknown) => {
+        if (cancelled) return
+        const problem = await diagnose(err)
+        if (!cancelled) setState(problem)
       })
     return () => {
       cancelled = true

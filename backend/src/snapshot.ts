@@ -49,7 +49,17 @@ export function viewFor(db: Database, viewerId: number): Database {
     users: db.users.map((u) =>
       u.id === viewerId ? u : { ...u, email: clients.has(u.id) ? u.email : '', phone: null, birthDate: null },
     ),
+    transactions: db.transactions.filter((t) => visibleTx.has(t.id)),
     transactionItems: db.transactionItems.filter((i) => visibleTx.has(i.transactionId)),
+    pointMovements: db.pointMovements.filter((m) => m.userId === viewerId || (m.transactionId !== null && visibleTx.has(m.transactionId))),
+    // The ranking needs everyone's status, but not what earned it.
+    statusMovements: db.statusMovements.map((m) =>
+      m.userId === viewerId || (m.transactionId !== null && visibleTx.has(m.transactionId))
+        ? m
+        : { ...m, transactionId: null, missionId: null, checkInId: null },
+    ),
+    missionProgress: db.missionProgress.filter((p) => p.userId === viewerId),
+    businessDiscoveries: db.businessDiscoveries.filter((d) => d.userId === viewerId),
     cancellationRequests: viewer?.role === 'MERCHANT' ? db.cancellationRequests.filter((r) => visibleTx.has(r.transactionId)) : [],
     notifications: db.notifications.filter((n) => n.userId === viewerId),
     // The cancellation reason written by staff is for the admin only.

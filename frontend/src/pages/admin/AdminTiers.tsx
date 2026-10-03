@@ -66,41 +66,43 @@ export function AdminTiers() {
         {tiers.length === 0 ? (
           <Empty>Sin niveles. Crea al menos uno con 0 puntos de nivel mínimos.</Empty>
         ) : (
-          <table className="table">
-            <thead>
-              <tr>
-                <th>Orden</th>
-                <th>Nivel</th>
-                <th className="num">Puntos de nivel mínimos</th>
-                <th className="num">Multiplica los puntos</th>
-                <th className="num">Clientes</th>
-                <th>Estado</th>
-                <th />
-              </tr>
-            </thead>
-            <tbody>
-              {tiers.map((t) => (
-                <tr key={t.id}>
-                  <td>{t.sortOrder}</td>
-                  <td>
-                    <span className="row gap">
-                      <TierIcon tier={t} size={30} />
-                      <TierChip tier={t} />
-                    </span>
-                  </td>
-                  <td className="num">{formatInt(t.minimumStatus)}</td>
-                  <td className="num">×{t.pointsMultiplier}</td>
-                  <td className="num">{customers.filter((u) => tierForStatus(db, statusTotal(db, u.id))?.id === t.id).length}</td>
-                  <td>{t.isActive ? <Badge tone="success">Activo</Badge> : <Badge>Inactivo</Badge>}</td>
-                  <td className="row end">
-                    <button className="btn btn-ghost btn-sm" onClick={() => setDraft(toDraft(t))}>
-                      Editar
-                    </button>
-                  </td>
+          <div className="table-wrap">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>Orden</th>
+                  <th>Nivel</th>
+                  <th className="num">Puntos de nivel mínimos</th>
+                  <th className="num">Multiplica los puntos</th>
+                  <th className="num">Clientes</th>
+                  <th>Estado</th>
+                  <th />
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {tiers.map((t) => (
+                  <tr key={t.id}>
+                    <td>{t.sortOrder}</td>
+                    <td>
+                      <span className="row gap">
+                        <TierIcon tier={t} size={30} />
+                        <TierChip tier={t} />
+                      </span>
+                    </td>
+                    <td className="num">{formatInt(t.minimumStatus)}</td>
+                    <td className="num">×{t.pointsMultiplier}</td>
+                    <td className="num">{customers.filter((u) => tierForStatus(db, statusTotal(db, u.id))?.id === t.id).length}</td>
+                    <td>{t.isActive ? <Badge tone="success">Activo</Badge> : <Badge>Inactivo</Badge>}</td>
+                    <td className="row end">
+                      <button className="btn btn-ghost btn-sm" onClick={() => setDraft(toDraft(t))}>
+                        Editar
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </Card>
 

@@ -72,6 +72,10 @@ const submit = async (e: FormEvent) => {
 - Rewards are created by the business manager (`MerchantRewardsPage`); the admin only views them. Show a reward with
   `rewardTitle` / `rewardConditions`, never a free-text name.
 - Badges are derived (`earnedBadges`, `badgeProgress`); local calendar days use `domain/time.ts` (Bolivia, UTC−4).
+- Show a level only with `<TierChip>` / `<TierIcon>` from `components/TierIcon.tsx` (icon chosen by the admin in
+  Niveles, `Tier.icon`; color from the level name). Never hand-build `tier-*` chips.
+- Customer copy says what to do and what they get, in one short line. Don't explain how the system records or
+  computes things (ledgers, fraud rules, renewals); that belongs to admin hints, and those stay one line too.
 
 ## Accessibility and UX
 

@@ -306,6 +306,7 @@ erDiagram
         decimal pointsMultiplier
         int sortOrder
         bool isActive
+        string icon
     }
     Transaction {
         int id PK

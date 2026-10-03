@@ -63,7 +63,7 @@ export function AdminPromotions() {
   const remove = async (p: Promotion, row: HTMLElement) => {
     const ok = await confirmDialog({
       title: `¿Eliminar "${p.name}"?`,
-      message: 'Deja de aplicarse a las compras nuevas. Los puntos extra ya entregados se conservan.',
+      message: 'Deja de aplicarse. Lo ya entregado se conserva.',
       confirmLabel: 'Eliminar',
       tone: 'danger',
     })
@@ -99,7 +99,7 @@ export function AdminPromotions() {
     <div className="page">
       <AdminHeader
         title="Promociones"
-        subtitle="Puntos dobles (×2) o puntos extra fijos (+100) por compra, en todo el Paseo o solo en las tiendas o categorías que elijas."
+        subtitle="Puntos ×2 o puntos extra, en todo el Paseo o por local"
         onCreate={() => setDraft(toDraft(db))}
       />
       <Card>
@@ -155,8 +155,7 @@ export function AdminPromotions() {
       <Card>
         <h2>Promociones automáticas</h2>
         <p className="muted small">
-          Las crea el sistema para un cliente: regreso de clientes dormidos, aniversarios, tarjeta de visitas completa y premios de la ruleta. Se ajustan
-          desde Configuración.
+          Personales y automáticas. Se ajustan en Configuración.
         </p>
         {personal.length === 0 ? (
           <Empty>Todavía no se generó ninguna.</Empty>

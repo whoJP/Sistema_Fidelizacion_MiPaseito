@@ -133,7 +133,7 @@ export function AdminEvents() {
   const remove = async (e: PaseoEvent, row: HTMLElement) => {
     const ok = await confirmDialog({
       title: `¿Eliminar "${e.name}"?`,
-      message: 'Los clientes que asistieron conservan sus puntos, pero dejarán de ver la insignia.',
+      message: 'Los asistentes conservan sus puntos, pero pierden la insignia.',
       confirmLabel: 'Eliminar',
       tone: 'danger',
     })
@@ -169,7 +169,7 @@ export function AdminEvents() {
     <div className="page">
       <AdminHeader
         title="Eventos"
-        subtitle="Quien asiste a un evento publicado gana sus puntos y la insignia del evento. El ingreso se registra escaneando el QR del cliente."
+        subtitle="Asistir da puntos e insignia"
         onCreate={() => setDraft(toDraft())}
         createLabel="Nuevo evento"
       />
@@ -240,7 +240,7 @@ export function AdminEvents() {
       {draft && (
         <Modal title={draft.id ? 'Editar evento' : 'Nuevo evento'} onClose={() => setDraft(null)} wide>
           <form className="stack" onSubmit={save}>
-            <Field label="Nombre del evento" hint="También es el nombre de la insignia que recibirán los asistentes.">
+            <Field label="Nombre del evento" hint="También nombra la insignia">
               <input required maxLength={LIMITS.name} value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} />
             </Field>
             <Field label="Descripción corta">
@@ -263,7 +263,7 @@ export function AdminEvents() {
               </Field>
             </div>
             <WindowFields value={draft} onChange={(w) => setDraft({ ...draft, ...w })} previous={editing} required />
-            <Field label="Estado" hint="Solo los eventos publicados se muestran a los clientes y permiten registrar ingresos.">
+            <Field label="Estado" hint="Solo los publicados se ven">
               <select value={draft.status} onChange={(e) => setDraft({ ...draft, status: e.target.value as EventStatus })}>
                 <option value="DRAFT">Borrador</option>
                 <option value="ACTIVE">Publicado</option>

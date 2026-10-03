@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { MapPin, Megaphone, Search, Stamp } from 'lucide-react'
+import { ChevronRight, MapPin, Megaphone, Search, Sparkles, Stamp } from 'lucide-react'
 import { useDb } from '../../data/store'
 import {
   businessCategoryClosure,
@@ -10,7 +10,7 @@ import {
   rootCategories,
 } from '../../domain/loyalty'
 import { useUser } from '../../session'
-import { Badge, Card, Empty, PageHeader } from '../../components/ui'
+import { Badge, Empty, PageHeader } from '../../components/ui'
 import { businessLocation } from '../../lib/format'
 
 export function DirectoryPage() {
@@ -30,14 +30,14 @@ export function DirectoryPage() {
 
   return (
     <div className="page">
-      <PageHeader title="Directorio" subtitle="Todos los establecimientos del Paseo." />
+      <PageHeader title="Locales" />
 
       <div className="filters">
         <label className="search">
           <Search size={16} />
-          <input placeholder="Buscar establecimiento" value={query} onChange={(e) => setQuery(e.target.value)} />
+          <input placeholder="Buscar" aria-label="Buscar establecimiento" value={query} onChange={(e) => setQuery(e.target.value)} />
         </label>
-        <div className="chips">
+        <div className="chips chips-scroll">
           <button className={`chip ${categoryId === null ? 'chip-active' : ''}`} onClick={() => setCategoryId(null)}>
             Todos
           </button>
@@ -50,51 +50,46 @@ export function DirectoryPage() {
       </div>
 
       {businesses.length === 0 ? (
-        <Empty>No hay establecimientos que coincidan.</Empty>
+        <Empty>Sin resultados</Empty>
       ) : (
-        <div className="cards-grid">
+        <div className="cards-grid business-grid">
           {businesses.map((b) => {
             const cats = businessCategoryIds(db, b.id)
               .map((id) => db.categories.find((c) => c.id === id && c.deletedAt === null)?.name)
               .filter(Boolean)
             const promos = promotionsForBusiness(db, b.id)
+            const found = discovered.has(b.id)
             return (
               <Link key={b.id} to={`/app/directory/${b.id}`} className="card business-card">
-                <div className="row between">
-                  <span className="logo">{b.logoUrl ? <img src={b.logoUrl} alt="" /> : b.name[0]}</span>
-                  {discovered.has(b.id) ? (
-                    <Badge tone="success">
-                      <Stamp size={12} /> Descubierto
-                    </Badge>
-                  ) : (
-                    <Badge>Nuevo para ti</Badge>
-                  )}
-                </div>
-                <h3>{b.name}</h3>
-                <p className="muted small clamp">{b.description}</p>
-                <div className="small muted row gap">
-                  <MapPin size={14} /> {businessLocation(b) || 'Ubicación por confirmar'}
-                </div>
-                <div className="chips">
-                  {cats.map((name) => (
-                    <span key={name} className="chip chip-static">
-                      {name}
-                    </span>
-                  ))}
-                  {promos.length > 0 && (
-                    <Badge tone="accent">
-                      <Megaphone size={12} aria-hidden /> Promoción
-                    </Badge>
-                  )}
-                </div>
+                <span className="logo">{b.logoUrl ? <img src={b.logoUrl} alt="" /> : b.name[0]}</span>
+                <span className="business-main">
+                  <h3>{b.name}</h3>
+                  <span className="business-meta">
+                    <MapPin size={13} aria-hidden /> {businessLocation(b) || cats[0] || 'Paseo Aranjuez'}
+                  </span>
+                  <span className="business-tags">
+                    {found ? (
+                      <Badge tone="success">
+                        <Stamp size={11} aria-hidden /> Sellado
+                      </Badge>
+                    ) : (
+                      <Badge>
+                        <Sparkles size={11} aria-hidden /> Nuevo
+                      </Badge>
+                    )}
+                    {promos.length > 0 && (
+                      <Badge tone="accent">
+                        <Megaphone size={11} aria-hidden /> Promo
+                      </Badge>
+                    )}
+                  </span>
+                </span>
+                <ChevronRight className="business-go" size={18} aria-hidden />
               </Link>
             )
           })}
         </div>
       )}
-      <Card className="hint-card">
-        <p className="small muted">Las categorías y establecimientos los configura la administración del Paseo.</p>
-      </Card>
     </div>
   )
 }

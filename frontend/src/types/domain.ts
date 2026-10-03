@@ -1,4 +1,5 @@
 // Mirror of backend/prisma/schema.prisma. Dates are ISO strings, Decimals are numbers.
+import type { TIER_ICON_KEYS } from '../domain/validation'
 
 export type UserRole = 'CUSTOMER' | 'MERCHANT' | 'ADMIN'
 export type UserStatus = 'ACTIVE' | 'SUSPENDED'
@@ -144,7 +145,10 @@ export interface Tier {
   pointsMultiplier: number
   sortOrder: number
   isActive: boolean
+  icon: TierIconKey
 }
+
+export type TierIconKey = (typeof TIER_ICON_KEYS)[number]
 
 export interface Transaction {
   id: number

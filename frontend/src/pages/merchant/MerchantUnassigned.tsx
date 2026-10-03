@@ -9,7 +9,7 @@ export function MerchantUnassigned() {
     <div className="page">
       <PageHeader title="Sin establecimiento asignado" />
       <Card>
-        <Empty>Tu cuenta de personal todavía no está asignada a ningún establecimiento. Pide a la administración del Paseo que te agregue a su equipo.</Empty>
+        <Empty>Aún no tienes un local asignado. Pídelo a la administración.</Empty>
       </Card>
     </div>
   )

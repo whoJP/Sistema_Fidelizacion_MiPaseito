@@ -10,27 +10,27 @@ const HIT_MS = 700
 const PROBLEMS: Record<Exclude<CameraState, 'starting' | 'live'>, { title: string; text: string; retry: boolean }> = {
   insecure: {
     title: 'La cámara necesita una conexión segura',
-    text: 'Abre Paseo Club con una dirección que empiece con https:// para poder escanear. Mientras tanto, puedes escribir el código a mano.',
+    text: 'Abre Paseo Club con https:// o escribe el código.',
     retry: false,
   },
   denied: {
     title: 'Falta el permiso de la cámara',
-    text: 'Toca el candado junto a la dirección del navegador, permite la cámara y vuelve a intentar.',
+    text: 'Permítela desde el candado del navegador.',
     retry: true,
   },
   missing: {
     title: 'No encontramos una cámara',
-    text: 'Este dispositivo no tiene cámara disponible. Puedes escribir el código a mano.',
+    text: 'Escribe el código a mano.',
     retry: true,
   },
   busy: {
     title: 'La cámara está ocupada',
-    text: 'Otra app o pestaña la está usando. Ciérrala y vuelve a intentar.',
+    text: 'Cierra la otra app o pestaña que la usa.',
     retry: true,
   },
   failed: {
     title: 'No se pudo abrir la cámara',
-    text: 'Vuelve a intentar. Si sigue fallando, puedes escribir el código a mano.',
+    text: 'Reintenta o escribe el código.',
     retry: true,
   },
 }

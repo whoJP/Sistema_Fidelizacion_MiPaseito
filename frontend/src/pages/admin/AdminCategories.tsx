@@ -70,7 +70,7 @@ export function AdminCategories() {
     <div className="page">
       <AdminHeader
         title="Categorías"
-        subtitle="Jerarquía dinámica: una categoría puede tener subcategorías."
+        subtitle="Categorías y subcategorías"
         onCreate={() => setDraft({ id: null, name: '', parentId: null, status: 'ACTIVE' })}
       />
       <Card>

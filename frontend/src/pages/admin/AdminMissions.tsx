@@ -59,7 +59,7 @@ export function AdminMissions() {
   const remove = async (m: Mission, row: HTMLElement) => {
     const ok = await confirmDialog({
       title: `¿Eliminar "${m.name}"?`,
-      message: 'Deja de mostrarse a los clientes. Los premios ya entregados se conservan.',
+      message: 'Deja de mostrarse. Lo ya entregado se conserva.',
       confirmLabel: 'Eliminar',
       tone: 'danger',
     })
@@ -99,7 +99,7 @@ export function AdminMissions() {
     <div className="page">
       <AdminHeader
         title="Misiones"
-        subtitle="Retos con un objetivo y un premio. El premio se entrega solo al cumplirlo (también a quien ya lo cumple al publicarla) y se retira si se anula la compra que lo logró."
+        subtitle="Objetivo y premio automático"
         onCreate={() => setDraft(toDraft(db))}
       />
       <Card>

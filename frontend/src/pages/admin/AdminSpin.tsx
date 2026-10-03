@@ -59,7 +59,7 @@ export function AdminSpin() {
   const remove = async (p: SpinPrize, row: HTMLElement) => {
     const ok = await confirmDialog({
       title: `¿Quitar "${prizeTitle(db, p)}" de la ruleta?`,
-      message: 'Deja de salir en los giros nuevos. Los premios ya ganados se conservan.',
+      message: 'Deja de salir en la ruleta. Lo ya ganado se conserva.',
       confirmLabel: 'Quitar',
       tone: 'danger',
     })
@@ -95,8 +95,7 @@ export function AdminSpin() {
         title="Ruleta"
         subtitle={
           <>
-            Premios del giro diario. El peso define qué tan seguido sale cada uno. Costo del giro y giros extra en{' '}
-            <Link to="/admin/settings">Configuración</Link>.
+            Más peso, más seguido sale · costo en <Link to="/admin/settings">Configuración</Link>
           </>
         }
         onCreate={() => setDraft(toDraft())}

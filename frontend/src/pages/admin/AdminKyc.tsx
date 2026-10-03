@@ -82,7 +82,7 @@ export function AdminKyc() {
     <div className="page">
       <PageHeader
         title="Verificaciones"
-        subtitle="Clientes que enviaron su fecha de nacimiento con foto del carnet. Al aprobar se activan sus beneficios de cumpleaños y la foto se borra."
+        subtitle="Aprobar activa el cumpleaños y borra la foto"
       />
       <div className="chips">
         {(Object.keys(STATUS_LABEL) as KycStatus[]).map((s) => (

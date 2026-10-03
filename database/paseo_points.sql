@@ -873,6 +873,7 @@ CREATE TABLE `Tier` (
   `pointsMultiplier` decimal(4,2) NOT NULL DEFAULT '1.00',
   `sortOrder` int NOT NULL,
   `isActive` tinyint(1) NOT NULL DEFAULT '1',
+  `icon` varchar(30) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'medal',
   PRIMARY KEY (`id`),
   UNIQUE KEY `Tier_name_key` (`name`),
   UNIQUE KEY `Tier_minimumStatus_key` (`minimumStatus`)
@@ -885,7 +886,7 @@ CREATE TABLE `Tier` (
 
 LOCK TABLES `Tier` WRITE;
 /*!40000 ALTER TABLE `Tier` DISABLE KEYS */;
-INSERT INTO `Tier` VALUES (1,'Bronce',0,1.00,1,1),(2,'Plata',1500,1.25,2,1),(3,'Oro',5000,1.50,3,1),(4,'Platinum',12000,2.00,4,1);
+INSERT INTO `Tier` VALUES (1,'Bronce',0,1.00,1,1,'shield'),(2,'Plata',1500,1.25,2,1,'star'),(3,'Oro',5000,1.50,3,1,'crown'),(4,'Platinum',12000,2.00,4,1,'gem');
 /*!40000 ALTER TABLE `Tier` ENABLE KEYS */;
 UNLOCK TABLES;
 

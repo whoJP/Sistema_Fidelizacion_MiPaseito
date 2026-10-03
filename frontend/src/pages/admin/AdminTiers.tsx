@@ -2,12 +2,21 @@ import { useState, type FormEvent } from 'react'
 import { useDb } from '../../data/store'
 import { statusTotal, tierForStatus } from '../../domain/loyalty'
 import { formatInt } from '../../lib/format'
-import type { Tier } from '../../types/domain'
+import type { Tier, TierIconKey } from '../../types/domain'
 import { Badge, Card, Empty, Field, Modal, run } from '../../components/ui'
-import { LIMITS, MAX_MULTIPLIER, MAX_SORT_ORDER, MAX_TIER_STATUS } from '../../domain/validation'
+import { TIER_ICONS, TierChip, TierIcon } from '../../components/TierIcon'
+import { LIMITS, MAX_MULTIPLIER, MAX_SORT_ORDER, MAX_TIER_STATUS, TIER_ICON_KEYS } from '../../domain/validation'
 import { AdminHeader, FormActions } from './shared'
 
-type Draft = { id: number | null; name: string; minimumStatus: string; pointsMultiplier: string; sortOrder: string; isActive: boolean }
+type Draft = {
+  id: number | null
+  name: string
+  minimumStatus: string
+  pointsMultiplier: string
+  sortOrder: string
+  isActive: boolean
+  icon: TierIconKey
+}
 
 const toDraft = (t?: Tier, nextOrder = 1): Draft => ({
   id: t?.id ?? null,
@@ -16,6 +25,7 @@ const toDraft = (t?: Tier, nextOrder = 1): Draft => ({
   pointsMultiplier: String(t?.pointsMultiplier ?? 1),
   sortOrder: String(t?.sortOrder ?? nextOrder),
   isActive: t?.isActive ?? true,
+  icon: t?.icon ?? 'medal',
 })
 
 export function AdminTiers() {
@@ -37,6 +47,7 @@ export function AdminTiers() {
           pointsMultiplier: Number(draft.pointsMultiplier),
           sortOrder: Math.trunc(Number(draft.sortOrder)),
           isActive: draft.isActive,
+          icon: draft.icon,
         },
       },
       'Nivel guardado',
@@ -48,7 +59,7 @@ export function AdminTiers() {
     <div className="page">
       <AdminHeader
         title="Niveles"
-        subtitle="El cliente sube de nivel al juntar los puntos de nivel mínimos. Cada nivel puede multiplicar los puntos que gana."
+        subtitle="Mínimo de puntos de nivel, multiplicador e ícono"
         onCreate={() => setDraft(toDraft(undefined, tiers.length + 1))}
       />
       <Card>
@@ -59,7 +70,7 @@ export function AdminTiers() {
             <thead>
               <tr>
                 <th>Orden</th>
-                <th>Nombre</th>
+                <th>Nivel</th>
                 <th className="num">Puntos de nivel mínimos</th>
                 <th className="num">Multiplica los puntos</th>
                 <th className="num">Clientes</th>
@@ -72,7 +83,10 @@ export function AdminTiers() {
                 <tr key={t.id}>
                   <td>{t.sortOrder}</td>
                   <td>
-                    <span className={`tier-chip tier-${t.name.toLowerCase()}`}>{t.name}</span>
+                    <span className="row gap">
+                      <TierIcon tier={t} size={30} />
+                      <TierChip tier={t} />
+                    </span>
                   </td>
                   <td className="num">{formatInt(t.minimumStatus)}</td>
                   <td className="num">×{t.pointsMultiplier}</td>
@@ -93,9 +107,36 @@ export function AdminTiers() {
       {draft && (
         <Modal title={draft.id ? 'Editar nivel' : 'Nuevo nivel'} onClose={() => setDraft(null)}>
           <form className="stack" onSubmit={save}>
+            <div className="tier-preview">
+              <TierIcon tier={{ name: draft.name, icon: draft.icon }} size={52} />
+              <TierChip tier={{ name: draft.name.trim() || 'Nuevo nivel', icon: draft.icon }} />
+            </div>
             <Field label="Nombre">
               <input required maxLength={LIMITS.tierName} value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} />
             </Field>
+            <div className="field">
+              <span className="field-label">Ícono</span>
+              <div className="icon-picker" role="radiogroup" aria-label="Ícono del nivel">
+                {TIER_ICON_KEYS.map((key) => {
+                  const { icon: Icon, label } = TIER_ICONS[key]
+                  const active = draft.icon === key
+                  return (
+                    <button
+                      key={key}
+                      type="button"
+                      role="radio"
+                      aria-checked={active}
+                      aria-label={label}
+                      title={label}
+                      className={`icon-pick ${active ? 'is-active' : ''}`}
+                      onClick={() => setDraft({ ...draft, icon: key })}
+                    >
+                      <Icon size={20} aria-hidden />
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
             <div className="grid-3">
               <Field label="Puntos de nivel mínimos" hint="El nivel inicial va con 0">
                 <input

@@ -160,7 +160,7 @@ export function AdminAudit() {
 
   return (
     <div className="page">
-      <PageHeader title="Auditoría" subtitle="Quién hizo cada cambio importante y cuándo. Este registro no se puede editar." />
+      <PageHeader title="Auditoría" subtitle="Registro de cambios, no editable" />
       <Card>
         <div className="filters-row">
           <Field label="Buscar">

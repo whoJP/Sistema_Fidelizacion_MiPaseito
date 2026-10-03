@@ -8,24 +8,24 @@ type Kind = 'customer' | 'redemption' | 'space'
 const SPEC: Record<Kind, { label: string; hint: string; placeholder: string; length: number; submit: string }> = {
   customer: {
     label: 'Código del cliente',
-    hint: 'Son los 6 números que aparecen debajo del QR, en la tarjeta del cliente.',
+    hint: '6 números bajo el QR de su tarjeta',
     placeholder: '000 000',
     length: 6,
     submit: 'Buscar cliente',
   },
   redemption: {
     label: 'Código del cliente o del canje',
-    hint: 'Los 6 números de la tarjeta del cliente, o el código del canje que ve en Recompensas › Mis canjes.',
+    hint: '6 números de su tarjeta o código del canje',
     placeholder: '000 000 o XXXXX-XXXXX',
     length: 10,
     submit: 'Buscar',
   },
   space: {
     label: 'Código del espacio',
-    hint: 'Son las 8 letras y números impresos debajo del QR del espacio.',
+    hint: '8 caracteres bajo el QR del espacio',
     placeholder: 'XXXXXXXX',
     length: 8,
-    submit: 'Registrar mi visita',
+    submit: 'Registrar visita',
   },
 }
 
@@ -74,10 +74,10 @@ export function ScanOrCode({
     <div className="scan-or-code">
       <div className="tabs tabs-block" role="tablist" aria-label="Forma de identificar">
         <button type="button" role="tab" aria-selected={mode === 'scan'} className={mode === 'scan' ? 'tab tab-active' : 'tab'} onClick={() => setMode('scan')}>
-          <ScanLine size={16} aria-hidden /> Escanear QR
+          <ScanLine size={16} aria-hidden /> Escanear
         </button>
         <button type="button" role="tab" aria-selected={mode === 'code'} className={mode === 'code' ? 'tab tab-active' : 'tab'} onClick={() => setMode('code')}>
-          <Keyboard size={16} aria-hidden /> Escribir código
+          <Keyboard size={16} aria-hidden /> Código
         </button>
       </div>
 

@@ -17,7 +17,7 @@ export function KycBanner({ db, userId }: { db: Database; userId: number }) {
     return (
       <div className="kyc-banner is-pending" role="status">
         <ShieldQuestion size={18} aria-hidden />
-        <span>Estamos revisando la verificación de tu cumpleaños. Te avisaremos apenas esté lista.</span>
+        <span>Verificando tu cumpleaños</span>
       </div>
     )
   }
@@ -27,11 +27,11 @@ export function KycBanner({ db, userId }: { db: Database; userId: number }) {
       <span>
         {state.status === 'REJECTED' ? (
           <>
-            <b>No pudimos verificar tu cumpleaños.</b> Revisa el motivo y envíalo de nuevo desde Mi perfil.
+            <b>Cumpleaños no verificado</b> · reintenta
           </>
         ) : (
           <>
-            <b>Registra tu cumpleaños</b> para recibir puntos, un giro y regalos de los locales ese día.
+            <b>Registra tu cumpleaños</b> y recibe regalos
           </>
         )}
       </span>
@@ -73,7 +73,7 @@ export function BirthdayCard({ db, user }: { db: Database; user: User }) {
           <ClubGem size={14} /> Paseo Club te celebra
         </span>
         <h2>Feliz cumpleaños, {user.firstName}</h2>
-        <p>Hoy el Paseo es tuyo. Estos son tus regalos, válidos hasta la medianoche.</p>
+        <p>Tus regalos valen hasta la medianoche</p>
       </div>
 
       <ul className="bday-perks">
@@ -117,7 +117,7 @@ export function BirthdayCard({ db, user }: { db: Database; user: User }) {
           <h3>
             <Store size={16} aria-hidden /> Regalos de los locales
           </h3>
-          <p className="muted small">Con tu compra de hoy en el local, muestra tu tarjeta en caja y pide tu regalo de cumpleaños.</p>
+          <p className="muted small">Compra hoy y muestra tu tarjeta en caja</p>
           <ul>
             {gifts.map((g) => (
               <li key={g.business.id} className={claimed.has(g.business.id) ? 'is-claimed' : ''}>
@@ -140,9 +140,7 @@ export function BirthdayCard({ db, user }: { db: Database; user: User }) {
 
       {picking && !birthdayRewardClaimed(db, user.id, year) && (
         <Modal title="Elige tu regalo de cumpleaños" onClose={() => setPicking(false)} wide>
-          <p className="muted small">
-            Es gratis y no usa tus puntos. Lo canjeas hoy mostrando tu tarjeta en el local; si no lo usas, vence a la medianoche.
-          </p>
+          <p className="muted small">Gratis · úsalo hoy en el local</p>
           <ul className="pick-list">
             {options.map((r) => {
               const business = db.businesses.find((b) => b.id === r.businessId)

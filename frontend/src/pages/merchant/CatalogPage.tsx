@@ -100,7 +100,7 @@ export function CatalogPage() {
   const remove = async (item: CatalogItem, row: HTMLElement) => {
     const ok = await confirmDialog({
       title: `¿Eliminar "${item.name}"?`,
-      message: 'Dejará de mostrarse en el directorio y al registrar compras. Las compras pasadas conservan su detalle.',
+      message: 'Deja de mostrarse. Las compras pasadas no cambian.',
       confirmLabel: 'Eliminar',
       tone: 'danger',
     })
@@ -111,7 +111,7 @@ export function CatalogPage() {
     <div className="page">
       <PageHeader
         title="Catálogo"
-        subtitle={`Productos y precios de ${business.name}. Los disponibles se eligen al registrar una compra y se muestran en el directorio.`}
+        subtitle={`Productos y precios de ${business.name}`}
         actions={
           <button className="btn btn-primary" onClick={() => setDraft(toDraft())}>
             <Plus size={16} /> Agregar producto
@@ -152,7 +152,7 @@ export function CatalogPage() {
       <Card>
         {all.length === 0 ? (
           <Empty>
-            Agrega tus productos con su precio: los usarás para registrar cada compra.
+            Agrega tus productos con su precio.
             <button className="btn btn-primary" onClick={() => setDraft(toDraft())}>
               <Plus size={16} /> Agregar el primer producto
             </button>

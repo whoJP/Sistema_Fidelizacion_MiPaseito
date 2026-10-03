@@ -94,7 +94,7 @@ export function RegisterPurchasePage() {
 
   return (
     <div className="page">
-      <PageHeader title="Registrar compra" subtitle={`${business.name} · Identifica al cliente, elige los productos y registra. Los puntos le llegan al instante.`} />
+      <PageHeader title="Registrar compra" subtitle={business.name} />
 
       <div className="detail-grid">
         <div className="stack">
@@ -116,14 +116,13 @@ export function RegisterPurchasePage() {
                 </button>
               </div>
             ) : (
-              <ScanOrCode kind="customer" onSubmit={identify} busy={busy} scanLabel="Pide al cliente su QR de Paseo Club y apúntale con la cámara" />
+              <ScanOrCode kind="customer" onSubmit={identify} busy={busy} scanLabel="Escanea el QR del cliente" />
             )}
             {customer?.birthdayToday && (
               <p className="register-hint is-birthday">
                 <CakeSlice size={16} aria-hidden />
                 <span>
-                  ¡Hoy es el cumpleaños de {customer.firstName}! Registra su compra y luego entrégale su regalo en{' '}
-                  <Link to={`/merchant/${business.id}/birthday`}>Cumpleaños</Link>.
+                  ¡Hoy cumple años! Tras la compra, entrega su regalo en <Link to={`/merchant/${business.id}/birthday`}>Cumpleaños</Link>.
                 </span>
               </p>
             )}
@@ -131,8 +130,7 @@ export function RegisterPurchasePage() {
               <p className="register-hint">
                 <TrendingUp size={16} aria-hidden />
                 <span>
-                  A {customer.firstName} le faltan unos <b className="tabular">{formatMoney(customer.nextTier.missingBs)}</b> para subir a{' '}
-                  {customer.nextTier.tierName}.
+                  Le faltan <b className="tabular">{formatMoney(customer.nextTier.missingBs)}</b> para {customer.nextTier.tierName}.
                 </span>
               </p>
             )}
@@ -150,10 +148,10 @@ export function RegisterPurchasePage() {
                 <Empty>
                   {membership.role === 'MANAGER' ? (
                     <>
-                      Agrega productos con precio en tu <Link to={`/merchant/${business.id}/catalog`}>catálogo</Link> para registrar compras.
+                      Agrega productos a tu <Link to={`/merchant/${business.id}/catalog`}>catálogo</Link>.
                     </>
                   ) : (
-                    'Tu establecimiento aún no tiene productos disponibles. Pide al encargado que los agregue al catálogo.'
+                    'Sin productos. Pide al encargado que los agregue.'
                   )}
                 </Empty>
               ) : (
@@ -271,19 +269,16 @@ export function RegisterPurchasePage() {
                   </li>
                 ))}
               </ul>
-              {last.status === 'FLAGGED' && <p className="small">La administración del Paseo revisará esta compra.</p>}
-              {last.status === 'CANCELLED' && <p className="muted small">La compra quedó anulada y el cliente no recibió puntos por ella.</p>}
-              <UndoPurchase
-                tx={last}
-                after={<p className="muted small">Si hubo un error, el encargado puede solicitar la anulación en Movimientos.</p>}
-              />
+              {last.status === 'FLAGGED' && <p className="small">La administración la revisará.</p>}
+              {last.status === 'CANCELLED' && <p className="muted small">Anulada, sin puntos.</p>}
+              <UndoPurchase tx={last} />
             </Card>
           )}
 
           <Card>
             <h2>Tus últimos registros</h2>
             {recent.length === 0 ? (
-              <Empty>Aquí verás las compras que registres.</Empty>
+              <Empty>Aún sin registros.</Empty>
             ) : (
               <ul className="list">
                 {recent.map((t) => {

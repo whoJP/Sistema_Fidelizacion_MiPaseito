@@ -35,7 +35,7 @@ function SpacePoster({ space }: { space: Space }) {
   const regenerate = async () => {
     const ok = await confirmDialog({
       title: '¿Generar un código nuevo?',
-      message: 'El QR impreso actual deja de funcionar. Úsalo si el código se compartió fuera del espacio; luego imprime el nuevo.',
+      message: 'El QR impreso deja de funcionar. Imprime el nuevo.',
       confirmLabel: 'Generar código nuevo',
       tone: 'danger',
     })
@@ -52,7 +52,7 @@ function SpacePoster({ space }: { space: Space }) {
           <QRCodeSVG value={`${SPACE_QR_PREFIX}${space.code}`} size={240} level="M" bgColor="#f3eee0" fgColor="#010102" />
         </div>
         <p className="space-poster-cta">
-          Escanéalo desde la app y suma <b>{formatInt(space.pointsReward)} puntos</b> y {formatInt(space.statusReward)} de nivel. Una vez al día.
+          Escanéalo y suma <b>{formatInt(space.pointsReward)} puntos</b>. Una vez al día.
         </p>
         <code className="token token-lg">{space.code}</code>
       </div>
@@ -80,7 +80,7 @@ export function AdminSpaces() {
   const remove = async (s: Space, row: HTMLElement) => {
     const ok = await confirmDialog({
       title: `¿Eliminar "${s.name}"?`,
-      message: 'Su QR deja de funcionar. Las visitas y puntos ya entregados se conservan.',
+      message: 'Su QR deja de funcionar. Lo ya entregado se conserva.',
       confirmLabel: 'Eliminar',
       tone: 'danger',
     })
@@ -114,7 +114,7 @@ export function AdminSpaces() {
     <div className="page">
       <AdminHeader
         title="Espacios"
-        subtitle="Galería, miradores y otros lugares del Paseo sin caja. Cada uno tiene un QR fijo: el cliente lo escanea una vez al día y suma puntos y nivel."
+        subtitle="QR fijo · una visita al día por cliente"
         onCreate={() => setDraft(toDraft())}
       />
       <Card>

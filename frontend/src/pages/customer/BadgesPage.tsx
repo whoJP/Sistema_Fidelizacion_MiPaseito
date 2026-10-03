@@ -1,9 +1,10 @@
 import { useDb } from '../../data/store'
 import { attendedEventIds, badgeHint, completedTransactions, earnedBadges, pendingBadges, statusTotal, tierForStatus, upcomingEvents } from '../../domain/loyalty'
-import { formatDate, formatInt, plural } from '../../lib/format'
+import { formatDate, formatInt } from '../../lib/format'
 import { useUser } from '../../session'
 import { BadgeMedal } from '../../components/BadgeMedal'
 import { EventCard } from '../../components/EventCard'
+import { TierIcon } from '../../components/TierIcon'
 import { Empty, PageHeader, Progress, Stat } from '../../components/ui'
 
 export function BadgesPage() {
@@ -20,18 +21,29 @@ export function BadgesPage() {
 
   return (
     <div className="page">
-      <PageHeader title="Insignias" subtitle="Tu colección y los eventos del Paseo donde puedes ganar más." />
+      <PageHeader title="Insignias" />
 
       <div className="stats-row">
-        <Stat label="Insignias" value={`${earned.length} de ${totalAvailable}`} />
-        <Stat label="Nivel" value={tier?.name ?? 'Sin nivel'} />
-        <Stat label="Eventos asistidos" value={formatInt(attended.size)} />
-        <Stat label="Compras" value={formatInt(txs.length)} hint={`en ${plural(new Set(txs.map((t) => t.businessId)).size, 'establecimiento', 'establecimientos')}`} />
+        <Stat label="Insignias" value={`${earned.length}/${totalAvailable}`} />
+        <Stat
+          label="Nivel"
+          value={
+            tier ? (
+              <span className="stat-tier">
+                <TierIcon tier={tier} size={30} /> {tier.name}
+              </span>
+            ) : (
+              '—'
+            )
+          }
+        />
+        <Stat label="Eventos" value={formatInt(attended.size)} />
+        <Stat label="Compras" value={formatInt(txs.length)} />
       </div>
 
       {events.length > 0 && (
         <>
-          <h2 className="section-title">Próximos eventos del Paseo</h2>
+          <h2 className="section-title">Eventos</h2>
           <div className="events events-grid">
             {events.map((e) => (
               <EventCard key={e.id} event={e} />
@@ -42,11 +54,11 @@ export function BadgesPage() {
 
       <h2 className="section-title">Mis insignias</h2>
       {earned.length === 0 ? (
-        <Empty>Aún no tienes insignias. Compra en el Paseo, asiste a eventos y completa misiones para ganarlas.</Empty>
+        <Empty>Tu primera insignia te espera</Empty>
       ) : (
         <div className="medals">
           {earned.map((b) => (
-            <BadgeMedal key={b.key} kind={b.kind} name={b.name} description={b.description} earned footer={`Obtenida el ${formatDate(b.earnedAt)}`} />
+            <BadgeMedal key={b.key} kind={b.kind} name={b.name} description={b.description} earned footer={formatDate(b.earnedAt)} />
           ))}
         </div>
       )}

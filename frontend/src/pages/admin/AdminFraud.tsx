@@ -10,11 +10,11 @@ const STATUS_LABEL: Record<FraudAlertStatus, string> = { OPEN: 'Por revisar', RE
 
 /** Why each rule fires and what happens meanwhile, in plain words. */
 const WHY: Record<FraudAlertType, string> = {
-  DUPLICATE_TRANSACTION: 'Mismo cliente, misma tienda y mismo monto en menos de 10 minutos. Los puntos quedan retenidos.',
-  ABNORMAL_AMOUNT: 'El monto supera el límite fijado en Configuración. Los puntos quedan retenidos.',
-  HIGH_FREQUENCY: 'Más de 5 compras del mismo cliente en una hora. Solo es un aviso: los puntos ya se acreditaron.',
-  REUSED_REDEMPTION: 'Se intentó usar un código de canje que ya fue usado.',
-  CHECK_IN_ONLY: 'El cliente registra visitas a espacios pero nunca compró. Solo es un aviso: los puntos ya se acreditaron.',
+  DUPLICATE_TRANSACTION: 'Mismo cliente, tienda y monto en 10 min · puntos retenidos',
+  ABNORMAL_AMOUNT: 'Monto sobre el límite · puntos retenidos',
+  HIGH_FREQUENCY: 'Más de 5 compras en una hora · solo aviso',
+  REUSED_REDEMPTION: 'Código de canje ya usado',
+  CHECK_IN_ONLY: 'Visita espacios pero nunca compró · solo aviso',
 }
 
 const riskTone = (score: number) => (score >= 80 ? 'danger' : score >= 60 ? 'warning' : 'neutral')
@@ -47,7 +47,7 @@ export function AdminFraud() {
       message: confirmFraud
         ? held
           ? 'La compra se anula y el cliente no recibe puntos.'
-          : 'Se marca como confirmada para el registro; los puntos ya acreditados no cambian.'
+          : 'Queda confirmada; los puntos no cambian.'
         : held
           ? 'La compra se aprueba y el cliente recibe sus puntos.'
           : 'Se archiva sin cambios.',
@@ -61,7 +61,7 @@ export function AdminFraud() {
     <div className="page">
       <PageHeader
         title="Alertas de fraude"
-        subtitle="El sistema marca compras y canjes sospechosos. Tú decides: confirmar (se anula) o descartar (se aprueba)."
+        subtitle="Confirmar anula · descartar aprueba"
       />
       <Card>
         <div className="legend small">

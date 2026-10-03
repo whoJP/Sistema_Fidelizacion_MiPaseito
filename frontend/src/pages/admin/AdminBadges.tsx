@@ -98,7 +98,7 @@ export function AdminBadges() {
     <div className="page">
       <AdminHeader
         title="Insignias"
-        subtitle="Se muestran en el perfil del cliente. Se otorgan solas al cumplir la condición; las de eventos se crean automáticamente con cada evento."
+        subtitle="Se otorgan solas al cumplir la condición"
         onCreate={() => setDraft(toDraft())}
         createLabel="Nueva insignia"
       />
@@ -204,7 +204,7 @@ export function AdminBadges() {
             </Field>
 
             {draft.type === 'SPECIAL_DATE' && (
-              <Field label="Fecha" hint="Vale todo ese día, de 00:00 a 23:59. La gana quien compre o asista a un evento ese día.">
+              <Field label="Fecha" hint="La gana quien compre o asista ese día">
                 <input type="date" required min="2000-01-01" max="2100-12-31" value={draft.date} onChange={(e) => setDraft({ ...draft, date: e.target.value })} />
               </Field>
             )}

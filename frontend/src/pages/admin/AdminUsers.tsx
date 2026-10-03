@@ -8,6 +8,7 @@ import { useUser } from '../../session'
 import type { User } from '../../types/domain'
 import { Badge, Card, Field, Modal, PageHeader, Progress, Stat, flash, run } from '../../components/ui'
 import { confirmDialog } from '../../components/dialog'
+import { TierChip } from '../../components/TierIcon'
 import { LIMITS, MAX_POINTS, intError } from '../../domain/validation'
 import { StatusBadge } from './shared'
 
@@ -159,9 +160,7 @@ export function AdminUsers() {
     if (u.status === 'ACTIVE') {
       const ok = await confirmDialog({
         title: `¿Suspender a ${fullName(u)}?`,
-        message:
-          'Mientras esté suspendido no podrá sumar puntos, canjear recompensas ni registrar compras en tiendas. ' +
-          'Sus puntos e historial se conservan y puedes reactivarlo cuando quieras.',
+        message: 'No podrá sumar ni canjear puntos. Su historial se conserva y puedes reactivarlo.',
         confirmLabel: 'Suspender',
         tone: 'danger',
       })
@@ -179,7 +178,7 @@ export function AdminUsers() {
     <div className="page">
       <PageHeader
         title="Usuarios"
-        subtitle="Clientes, personal de tiendas y administradores. Las cuentas de personal se crean desde Establecimientos."
+        subtitle="Clientes, personal y administradores"
       />
       <div className="filters-row">
         <label className="search">
@@ -229,7 +228,7 @@ export function AdminUsers() {
                     </td>
                     <td className="num">{u.role === 'CUSTOMER' ? formatInt(pointsBalance(db, u.id)) : '-'}</td>
                     <td className="num">{u.role === 'CUSTOMER' ? formatInt(status) : '-'}</td>
-                    <td>{u.role === 'CUSTOMER' && tier ? <span className={`tier-chip tier-${tier.name.toLowerCase()}`}>{tier.name}</span> : '-'}</td>
+                    <td>{u.role === 'CUSTOMER' && tier ? <TierChip tier={tier} /> : '-'}</td>
                     <td>
                       <StatusBadge status={u.status} />
                     </td>
@@ -267,9 +266,6 @@ export function AdminUsers() {
       {adjusting && (
         <Modal title={`Ajustar puntos · ${fullName(adjusting)}`} onClose={() => setAdjusting(null)}>
           <form className="stack" onSubmit={submitAdjust}>
-            <p className="muted small">
-              Úsalo para corregir errores o compensar a un cliente. Queda registrado en su historial y en Auditoría.
-            </p>
             <div className="grid-2">
               <Field label="Qué ajustar">
                 <select value={balance} onChange={(e) => setBalance(e.target.value as 'POINTS' | 'STATUS')}>
@@ -277,7 +273,7 @@ export function AdminUsers() {
                   <option value="STATUS">Puntos de nivel</option>
                 </select>
               </Field>
-              <Field label="Cantidad" hint="Positiva para sumar, negativa para restar (ej. -50)." error={amountProblem}>
+              <Field label="Cantidad" hint="Negativa para restar (ej. -50)" error={amountProblem}>
                 <input
                   type="number"
                   step={1}

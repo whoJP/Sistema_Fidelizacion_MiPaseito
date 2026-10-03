@@ -1,10 +1,11 @@
-import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type CSSProperties, type ReactNode } from 'react'
+import { Fragment, useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type CSSProperties, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { ArrowUpRight, X, type LucideIcon } from 'lucide-react'
 import { ApiError, api } from '../data/api'
 import type { CommandInput, CommandName, CommandResult } from '../data/commands'
 import { applySnapshot } from '../data/store'
 import { formatInt } from '../lib/format'
+import { haptic, useDragToClose } from '../lib/motion'
 
 // ---------- Toasts ----------
 
@@ -15,18 +16,22 @@ const toastListeners = new Set<() => void>()
 const TOAST_MS = 4500
 const TOAST_OUT_MS = 300
 
+function dismiss(id: number) {
+  if (!toasts.some((t) => t.id === id && !t.leaving)) return
+  toasts = toasts.map((t) => (t.id === id ? { ...t, leaving: true } : t))
+  toastListeners.forEach((l) => l())
+  setTimeout(() => {
+    toasts = toasts.filter((t) => t.id !== id)
+    toastListeners.forEach((l) => l())
+  }, TOAST_OUT_MS)
+}
+
 export function notify(kind: Toast['kind'], message: string) {
   const toast = { id: ++toastSeq, kind, message }
   toasts = [...toasts, toast]
   toastListeners.forEach((l) => l())
-  setTimeout(() => {
-    toasts = toasts.map((t) => (t.id === toast.id ? { ...t, leaving: true } : t))
-    toastListeners.forEach((l) => l())
-  }, TOAST_MS - TOAST_OUT_MS)
-  setTimeout(() => {
-    toasts = toasts.filter((t) => t.id !== toast.id)
-    toastListeners.forEach((l) => l())
-  }, TOAST_MS)
+  if (kind === 'error') haptic([10, 40, 10])
+  setTimeout(() => dismiss(toast.id), TOAST_MS - TOAST_OUT_MS)
 }
 
 export function Toaster() {
@@ -40,7 +45,12 @@ export function Toaster() {
   return (
     <div className="toaster" role="status" aria-live="polite">
       {list.map((t) => (
-        <div key={t.id} className={`toast toast-${t.kind} ${t.leaving ? 'is-leaving' : ''}`}>
+        <div
+          key={t.id}
+          className={`toast toast-${t.kind} ${t.leaving ? 'is-leaving' : ''}`}
+          style={{ '--life': `${TOAST_MS - TOAST_OUT_MS}ms` } as CSSProperties}
+          onClick={() => dismiss(t.id)}
+        >
           {t.message}
         </div>
       ))}
@@ -82,7 +92,19 @@ export function PageHeader({
     <header className="page-header">
       <div>
         {eyebrow && <span className="page-eyebrow">{eyebrow}</span>}
-        <h1>{title}</h1>
+        <h1>
+          <span className="sr-only">{title}</span>
+          <span className="title-words" aria-hidden>
+            {title.split(' ').map((word, i) => (
+              <Fragment key={i}>
+                {i > 0 && ' '}
+                <span className="title-word">
+                  <span style={{ '--w': i } as CSSProperties}>{word}</span>
+                </span>
+              </Fragment>
+            ))}
+          </span>
+        </h1>
         {subtitle && <p className="muted">{subtitle}</p>}
       </div>
       {actions && <div className="page-actions">{actions}</div>}
@@ -275,6 +297,7 @@ export function TimeBar({ start, end, now }: { start: number; end: number; now: 
 export function Modal({ title, onClose, children, wide }: { title: string; onClose: () => void; children: ReactNode; wide?: boolean }) {
   // Closing from inside (X, Escape, backdrop) plays the exit first; the parent unmounts on animation end.
   const [closing, setClosing] = useState(false)
+  const drag = useDragToClose('.modal', onClose)
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setClosing(true)
     window.addEventListener('keydown', onKey)
@@ -287,7 +310,7 @@ export function Modal({ title, onClose, children, wide }: { title: string; onClo
       onAnimationEnd={(e) => closing && e.target === e.currentTarget && onClose()}
     >
       <div className={`modal ${wide ? 'modal-wide' : ''}`} role="dialog" aria-modal="true" aria-label={title}>
-        <div className="modal-head">
+        <div className="modal-head" {...drag}>
           <h2>{title}</h2>
           <button className="icon-btn" onClick={() => setClosing(true)} aria-label="Cerrar">
             <X size={20} />

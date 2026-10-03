@@ -6,10 +6,18 @@ import { DEMO_ACCOUNTS, DEMO_PASSWORD } from '../data/demoAccounts'
 import { signIn, signOut, useSession } from '../session'
 import { Field, Toaster, notify } from '../components/ui'
 import { LIMITS, emailError, passwordError, personNameError, phoneError } from '../domain/validation'
-import { BrandMark, ClubGem } from '../components/BrandMark'
+import { BrandMark } from '../components/BrandMark'
+import { Ambient } from '../components/Ambient'
 import { DialogHost, confirmDialog } from '../components/dialog'
+import { TierIcon } from '../components/TierIcon'
+import type { Tier } from '../types/domain'
 
-const TIER_LADDER = ['Bronce', 'Plata', 'Oro', 'Platinum'] as const
+const TIER_LADDER: Pick<Tier, 'name' | 'icon'>[] = [
+  { name: 'Bronce', icon: 'shield' },
+  { name: 'Plata', icon: 'star' },
+  { name: 'Oro', icon: 'crown' },
+  { name: 'Platinum', icon: 'gem' },
+]
 
 const PASSPORT_PREVIEW: { icon: LucideIcon; sealed: boolean }[] = [
   { icon: Coffee, sealed: true },
@@ -59,7 +67,7 @@ export function LoginPage() {
   const resetDemo = async () => {
     const ok = await confirmDialog({
       title: '¿Restablecer los datos de demostración?',
-      message: 'Se borran todos los cambios hechos en la base de datos.',
+      message: 'Se borran todos los cambios.',
       confirmLabel: 'Restablecer',
       tone: 'danger',
     })
@@ -78,6 +86,7 @@ export function LoginPage() {
 
   return (
     <div className="auth">
+      <Ambient />
       <section className="auth-hero">
         <div className="brand brand-lg">
           <BrandMark size={52} />
@@ -93,7 +102,7 @@ export function LoginPage() {
           <h1>
             Cada visita a Paseo Aranjuez <em>suma.</em>
           </h1>
-          <p>Tus compras en el Paseo se convierten en puntos, premios y beneficios que crecen contigo.</p>
+          <p>Tus compras se convierten en puntos y premios.</p>
 
           <div className="auth-showcase">
             <article className="auth-tile">
@@ -101,7 +110,7 @@ export function LoginPage() {
                 <ShoppingBag size={20} />
               </span>
               <h3>Compra y suma</h3>
-              <p>Muestra tu QR al pagar y cada compra se convierte en puntos para canjear.</p>
+              <p>Muestra tu QR al pagar.</p>
               <div className="auth-earn" aria-label="Ejemplo: una compra de 120 bolivianos suma 120 puntos">
                 <span>Compras Bs 120</span>
                 <ArrowRight size={14} aria-hidden />
@@ -118,21 +127,21 @@ export function LoginPage() {
                 ))}
               </div>
               <h3>Pasaporte del Paseo</h3>
-              <p>Tu ruta por el Paseo. La primera compra en cada local nuevo lo sella y te acerca al siguiente nivel.</p>
+              <p>Cada local nuevo, un sello.</p>
             </article>
 
             <article className="auth-tile auth-tile-wide">
               <div className="auth-tile-head">
                 <h3>Sube de nivel</h3>
-                <p>Mientras más compras, más alto llegas y más puntos ganas en cada compra.</p>
+                <p>Más nivel, más puntos por compra.</p>
               </div>
               <ol className="tier-ladder">
                 {TIER_LADDER.map((tier, i) => (
-                  <li key={tier} className={`tier-step tier-step-${tier.toLowerCase()}`}>
+                  <li key={tier.name} className="tier-step">
                     <span className="tier-gem" style={{ '--step': i } as CSSProperties}>
-                      <ClubGem size={18 + i * 5} />
+                      <TierIcon tier={tier} size={34 + i * 8} />
                     </span>
-                    <span className="tier-step-name">{tier}</span>
+                    <span className="tier-step-name">{tier.name}</span>
                   </li>
                 ))}
               </ol>
@@ -155,7 +164,7 @@ export function LoginPage() {
         </div>
         <h2>{mode === 'login' ? 'Bienvenido de vuelta' : 'Únete a Paseo Club'}</h2>
         <p className="auth-panel-lead muted">
-          {mode === 'login' ? 'Ingresa con tu correo para ver tus puntos y premios.' : 'Crea tu cuenta gratis y empieza a sumar puntos desde tu primera compra.'}
+          {mode === 'login' ? 'Tus puntos y premios te esperan.' : 'Gratis. Suma desde tu primera compra.'}
         </p>
 
         <div className="tabs" role="tablist">
@@ -208,7 +217,7 @@ export function LoginPage() {
               </Field>
             </div>
           )}
-          <Field label="Contraseña" hint={mode === 'register' ? `Mínimo ${LIMITS.passwordMin} caracteres, con letras y números.` : undefined}>
+          <Field label="Contraseña" hint={mode === 'register' ? `${LIMITS.passwordMin}+ caracteres, letras y números` : undefined}>
             <input
               type="password"
               required

@@ -3,11 +3,50 @@ import { QRCodeSVG } from 'qrcode.react'
 import { Copy, EyeOff, Nfc, QrCode, RefreshCw } from 'lucide-react'
 import { api } from '../data/api'
 import { formatInt, formatMonthYear } from '../lib/format'
-import type { User } from '../types/domain'
+import type { Tier, User } from '../types/domain'
+import { haptic } from '../lib/motion'
 import { ClubGem } from './BrandMark'
+import { TierIcon, tierTone } from './TierIcon'
+import { Sparks } from './Sparks'
 import { CountUp, notify, prefersReducedMotion } from './ui'
 
-const FINISHES = new Set(['bronce', 'plata', 'oro', 'platinum'])
+const FINISHES = new Set(['bronce', 'plata', 'oro', 'platinum', 'platino'])
+
+const clamp = (v: number) => Math.max(-1, Math.min(1, v))
+
+/**
+ * Tilts the card with the phone (Android; iOS asks for a permission we don't request). The rest
+ * position drifts towards how the phone is held, so only movement shows.
+ */
+function useGyroTilt(el: HTMLDivElement | null) {
+  useEffect(() => {
+    if (!el || prefersReducedMotion() || !('DeviceOrientationEvent' in window)) return
+    if (typeof (DeviceOrientationEvent as unknown as { requestPermission?: unknown }).requestPermission === 'function') return
+    let rest: { beta: number; gamma: number } | null = null
+    let frame = 0
+    const onTilt = (e: DeviceOrientationEvent) => {
+      if (e.beta === null || e.gamma === null) return
+      rest = rest ? { beta: rest.beta + (e.beta - rest.beta) * 0.03, gamma: rest.gamma + (e.gamma - rest.gamma) * 0.03 } : { beta: e.beta, gamma: e.gamma }
+      const x = clamp((e.gamma - rest.gamma) / 22)
+      const y = clamp((e.beta - rest.beta) / 22)
+      cancelAnimationFrame(frame)
+      frame = requestAnimationFrame(() => {
+        const s = el.style
+        el.classList.add('is-gyro')
+        s.setProperty('--ry', `${x * 8}deg`)
+        s.setProperty('--rx', `${-y * 7}deg`)
+        s.setProperty('--mx', `${50 + x * 45}%`)
+        s.setProperty('--my', `${40 + y * 45}%`)
+      })
+    }
+    window.addEventListener('deviceorientation', onTilt)
+    return () => {
+      cancelAnimationFrame(frame)
+      window.removeEventListener('deviceorientation', onTilt)
+      el.classList.remove('is-gyro')
+    }
+  }, [el])
+}
 
 const stop = (fn: () => void) => (e: MouseEvent) => {
   e.stopPropagation()
@@ -60,7 +99,6 @@ function QrBack() {
         <strong className="mcard-code tabular" aria-label={`Código ${qr?.code.split('').join(' ') ?? ''}`}>
           {code}
         </strong>
-        <span>Si no pueden escanear el QR, dicta este código.</span>
         <span className="mcard-timer">
           Cambia en <b className="tabular">{qr ? `${mm}:${ss}` : '-:--'}</b>
         </span>
@@ -80,7 +118,7 @@ function QrBack() {
 export function MemberCard({
   ref,
   user,
-  tierName,
+  tier,
   points,
   revealed,
   onToggle,
@@ -88,7 +126,7 @@ export function MemberCard({
 }: {
   ref?: Ref<HTMLDivElement>
   user: User
-  tierName: string | null
+  tier: Pick<Tier, 'name' | 'icon'> | null
   points: number
   revealed: boolean
   onToggle: () => void
@@ -104,7 +142,8 @@ export function MemberCard({
     setGain(points > prevPoints ? points - prevPoints : null)
   }
 
-  const finish = tierName && FINISHES.has(tierName.toLowerCase()) ? tierName.toLowerCase() : 'oro'
+  const tone = tier ? tierTone(tier.name).slice('tier-'.length) : ''
+  const finish = FINISHES.has(tone) ? (tone === 'platino' ? 'platinum' : tone) : 'oro'
 
   const tilt = (e: PointerEvent<HTMLDivElement>) => {
     if (e.pointerType !== 'mouse' || prefersReducedMotion()) return
@@ -125,6 +164,11 @@ export function MemberCard({
     if (e.target === e.currentTarget && e.propertyName === 'transform') setBackLive(revealed)
   }
   const cardRef = useRef<HTMLDivElement>(null)
+  const [cardEl, setCardEl] = useState<HTMLDivElement | null>(null)
+  useGyroTilt(cardEl)
+  useEffect(() => {
+    if (gain) haptic([14, 70, 24])
+  }, [gain, points])
   const toggle = () => {
     if (locked) return
     onToggle()
@@ -138,7 +182,10 @@ export function MemberCard({
   return (
     <div className="member" ref={ref}>
       <div
-        ref={cardRef}
+        ref={(node) => {
+          cardRef.current = node
+          setCardEl(node)
+        }}
         className={`mcard mcard-${finish} ${revealed ? 'is-flipped' : ''}`}
         onClick={toggle}
         onPointerMove={tilt}
@@ -151,7 +198,14 @@ export function MemberCard({
                 <span className="mcard-brand">
                   <ClubGem size={22} /> Paseo <b>Club</b>
                 </span>
-                <span className="mcard-tier">{tierName ?? 'Socio'}</span>
+                {tier ? (
+                  <span className="mcard-tier">
+                    <TierIcon tier={tier} />
+                    {tier.name}
+                  </span>
+                ) : (
+                  <span className="mcard-tier is-plain">Socio</span>
+                )}
               </div>
               <div className="mcard-row mcard-hw" aria-hidden>
                 <span className="mcard-chip" />
@@ -165,6 +219,7 @@ export function MemberCard({
                 {gain !== null && (
                   <span key={points} className="mcard-gain">
                     +{formatInt(gain)}
+                    <Sparks count={12} spread={46} />
                   </span>
                 )}
               </div>
@@ -187,6 +242,7 @@ export function MemberCard({
             </div>
           </div>
         </div>
+        {gain !== null && <span key={points} className="mcard-halo" aria-hidden />}
       </div>
 
       {!locked && (
@@ -194,7 +250,7 @@ export function MemberCard({
           <span className="mcard-toggle-icon" aria-hidden>
             {revealed ? <EyeOff size={16} /> : <QrCode size={16} />}
           </span>
-          {revealed ? 'Ocultar mi código' : 'Mostrar mi código QR'}
+          {revealed ? 'Ocultar QR' : 'Mostrar mi QR'}
         </button>
       )}
     </div>

@@ -24,7 +24,7 @@ export function EventCard({ event: e, onShowCode }: { event: PaseoEvent; onShowC
       <div className="event-body">
         {open ? (
           <span className="event-status event-live">
-            <span className="live-dot" aria-hidden /> En curso ahora
+            <span className="live-dot" aria-hidden /> En curso
           </span>
         ) : (
           <span className="event-status">{formatStartsIn(e.startsAt)}</span>
@@ -43,24 +43,16 @@ export function EventCard({ event: e, onShowCode }: { event: PaseoEvent; onShowC
         </ul>
         <div className="event-prize">
           <Medallion kind="EVENT" earned size={38} />
-          <span>
-            {e.pointsReward > 0 ? (
-              <>
-                Ganas <b>{formatInt(e.pointsReward)} puntos</b> y la insignia del evento
-              </>
-            ) : (
-              <>
-                Ganas la <b>insignia del evento</b>
-              </>
-            )}
-          </span>
+          <span>{e.pointsReward > 0 ? <b>+{formatInt(e.pointsReward)} pts + insignia</b> : <b>Insignia del evento</b>}</span>
         </div>
         {open && onShowCode ? (
           <button type="button" className="btn btn-primary btn-sm event-cta" onClick={onShowCode}>
-            <QrCode size={15} aria-hidden /> Mostrar mi código para entrar
+            <QrCode size={15} aria-hidden /> Mostrar mi QR
           </button>
         ) : (
-          <span className="event-how">Muestra tu código QR al entrar y el premio se suma solo.</span>
+          <span className="event-how">
+            <QrCode size={13} aria-hidden /> Entra con tu QR
+          </span>
         )}
       </div>
     </article>

@@ -57,11 +57,11 @@ export function ValidateRedemptionPage() {
     setBusy(false)
     if (!result) return false
     if (result.repeated) {
-      notify('error', 'Ya validaste este canje hace un momento. No entregues la recompensa otra vez.')
+      notify('error', 'Ya validado. No lo entregues otra vez.')
       return false
     }
     if (result.reused) {
-      notify('error', 'Este canje ya fue utilizado. Se generó una alerta de fraude.')
+      notify('error', 'Este canje ya fue usado.')
       setLast(null)
       return false
     }
@@ -86,7 +86,7 @@ export function ValidateRedemptionPage() {
     <div className="page">
       <PageHeader
         title="Validar canje"
-        subtitle={`${business.name} · Escanea la tarjeta del cliente, valida el cupón que usa y entrégale la recompensa.`}
+        subtitle={business.name}
       />
       <div className="detail-grid">
         <div className="stack">
@@ -116,7 +116,7 @@ export function ValidateRedemptionPage() {
               <h2 className="card-title">
                 <Gift size={18} aria-hidden /> Tarjeta del cliente
               </h2>
-              <ScanOrCode kind="redemption" onSubmit={validate} busy={busy} scanLabel="Apunta la cámara al QR de la tarjeta del cliente" />
+              <ScanOrCode kind="redemption" onSubmit={validate} busy={busy} scanLabel="Escanea el QR del cliente" />
             </Card>
           )}
         </div>
@@ -194,7 +194,7 @@ function CustomerCoupons({
         <Ticket size={18} aria-hidden /> Cupones para {business.name}
       </h2>
       {here.length === 0 ? (
-        <Empty>Este cliente no tiene cupones pendientes para este establecimiento.</Empty>
+        <Empty>Sin cupones para este local.</Empty>
       ) : (
         <ul className="list">
           {here.map((r) => {
@@ -228,7 +228,7 @@ function CustomerCoupons({
       )}
       {elsewhereNames.length > 0 && (
         <p className="muted small">
-          También tiene {plural(elsewhere.length, 'cupón', 'cupones')} para {elsewhereNames.join(', ')}: solo se canjean allí.
+          También {plural(elsewhere.length, 'cupón', 'cupones')} de {elsewhereNames.join(', ')}, solo allí.
         </p>
       )}
     </Card>

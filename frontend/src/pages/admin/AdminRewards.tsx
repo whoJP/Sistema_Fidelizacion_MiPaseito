@@ -17,7 +17,7 @@ export function AdminRewards() {
     <div className="page">
       <PageHeader
         title="Recompensas"
-        subtitle="Vista de consulta. Cada establecimiento crea y administra sus propias recompensas desde su panel."
+        subtitle="Solo consulta · las crea cada local"
       />
       <div className="filters">
         <select value={businessId ?? ''} onChange={(e) => setBusinessId(e.target.value ? Number(e.target.value) : null)} aria-label="Filtrar por establecimiento">

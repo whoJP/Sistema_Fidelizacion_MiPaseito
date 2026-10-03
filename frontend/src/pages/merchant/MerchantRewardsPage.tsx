@@ -144,7 +144,7 @@ export function MerchantRewardsPage() {
     <div className="page">
       <PageHeader
         title="Recompensas"
-        subtitle={`Lo que tus clientes pueden canjear con sus puntos. Solo se canjean en ${business.name}.`}
+        subtitle={`Canjeables en ${business.name}`}
         actions={
           <button className="btn btn-primary" onClick={() => setDraft(toDraft())}>
             <Plus size={16} /> Nueva recompensa
@@ -153,7 +153,7 @@ export function MerchantRewardsPage() {
       />
       <Card>
         {rewards.length === 0 ? (
-          <Empty>Aún no tienes recompensas. Crea la primera para atraer clientes con sus puntos.</Empty>
+          <Empty>Aún no tienes recompensas.</Empty>
         ) : (
           <div className="table-wrap">
             <table className="table table-stack">
@@ -269,7 +269,7 @@ export function MerchantRewardsPage() {
             {draft.type === 'FREE_PRODUCT' &&
               (products.length === 0 ? (
                 <p className="muted small">
-                  Primero agrega productos a tu <Link to={`/merchant/${business.id}/catalog`}>catálogo</Link>; la recompensa se elige de ahí.
+                  Primero agrega productos a tu <Link to={`/merchant/${business.id}/catalog`}>catálogo</Link>.
                 </p>
               ) : (
                 <div className="grid-2">
@@ -335,7 +335,7 @@ export function MerchantRewardsPage() {
               endLabel="Disponible hasta"
             />
             <div className="stack-sm">
-              <Field label="Condiciones adicionales (opcional)" hint="El beneficio ya queda definido arriba. Toca un ejemplo para agregarlo.">
+              <Field label="Condiciones adicionales (opcional)" hint="Toca un ejemplo para agregarlo">
                 <textarea rows={2} maxLength={LIMITS.description} value={draft.description} onChange={(e) => setDraft({ ...draft, description: e.target.value })} />
               </Field>
               <div className="chips" aria-label="Condiciones frecuentes">

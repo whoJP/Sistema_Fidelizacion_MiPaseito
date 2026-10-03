@@ -4,6 +4,7 @@ import { useDb } from '../../data/store'
 import { activeTiers, statusTotal, tierForStatus } from '../../domain/loyalty'
 import { formatInt, formatMoney, fullName, plural } from '../../lib/format'
 import { Card, PageHeader, Progress, Stat } from '../../components/ui'
+import { TierChip } from '../../components/TierIcon'
 import { useNow } from '../../lib/useNow'
 
 /** Every figure here is computed on the fly; analytics are never stored. */
@@ -52,7 +53,7 @@ export function AdminDashboard() {
     <div className="page">
       <PageHeader
         title="Resumen del programa"
-        subtitle="Últimos 30 días, calculado en tiempo real."
+        subtitle="Últimos 30 días"
         actions={
           <Link className="btn" to="/admin/metrics">
             Ver métricas detalladas <ArrowUpRight size={16} aria-hidden />
@@ -109,7 +110,7 @@ export function AdminDashboard() {
                         {formatMoney(amount)}
                       </div>
                     </div>
-                    {tier && <span className={`tier-chip tier-${tier.name.toLowerCase()}`}>{tier.name}</span>}
+                    {tier && <TierChip tier={tier} />}
                   </li>
                 )
               })}
@@ -127,7 +128,7 @@ export function AdminDashboard() {
               {distribution.map(({ tier, count }) => (
                 <li key={tier.id} className="mission-mini">
                   <div className="row between">
-                    <span className={`tier-chip tier-${tier.name.toLowerCase()}`}>{tier.name}</span>
+                    <TierChip tier={tier} />
                     <span className="small muted">{plural(count, 'cliente', 'clientes')}</span>
                   </div>
                   <Progress value={count} max={Math.max(1, customers.length)} />

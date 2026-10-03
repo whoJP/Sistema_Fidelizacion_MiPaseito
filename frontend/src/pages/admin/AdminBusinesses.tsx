@@ -106,7 +106,7 @@ function MembersPanel({ businessId }: { businessId: number }) {
     <div className="stack">
       <span className="field-label">Equipo del establecimiento</span>
       {members.length === 0 ? (
-        <p className="muted small">Sin personal. Hace falta al menos una persona para registrar compras.</p>
+        <p className="muted small">Sin personal.</p>
       ) : (
         <ul className="list">
           {members.map((m) => {
@@ -125,7 +125,7 @@ function MembersPanel({ businessId }: { businessId: number }) {
                       const row = e.currentTarget
                       const ok = await confirmDialog({
                         title: `¿Quitar a ${u ? fullName(u) : 'esta persona'} del equipo?`,
-                        message: 'Ya no podrá registrar compras ni validar canjes en este establecimiento. Lo que registró se conserva.',
+                        message: 'Pierde el acceso a este local. Sus registros se conservan.',
                         confirmLabel: 'Quitar',
                         tone: 'danger',
                       })
@@ -159,7 +159,7 @@ function MembersPanel({ businessId }: { businessId: number }) {
         </Field>
         <Field
           label="Contraseña inicial"
-          hint={`Mínimo ${LIMITS.passwordMin} caracteres, con letras y números. Entrégasela a la persona.`}
+          hint={`${LIMITS.passwordMin}+ caracteres, letras y números`}
           error={accountErrors.password}
         >
           <input
@@ -213,8 +213,7 @@ function MembersPanel({ businessId }: { businessId: number }) {
         </button>
       </div>
       <p className="muted small">
-        Cada persona trabaja en un solo establecimiento y usa una cuenta distinta a la de cliente. <b>Personal</b> registra compras y
-        valida canjes. <b>Encargado</b> además maneja el catálogo, las recompensas y puede anular registros.
+        <b>Personal</b>: compras y canjes. <b>Encargado</b>: además catálogo y recompensas.
       </p>
     </div>
   )
@@ -267,7 +266,7 @@ export function AdminBusinesses() {
     <div className="page">
       <AdminHeader
         title="Establecimientos"
-        subtitle="Restaurantes, tiendas y servicios del Paseo, con su ubicación, horario y personal."
+        subtitle="Ubicación, horario y personal"
         onCreate={() => setDraft(toDraft(db))}
       />
       <Card>
@@ -313,7 +312,7 @@ export function AdminBusinesses() {
                           const row = e.currentTarget
                           const ok = await confirmDialog({
                             title: `¿Eliminar "${b.name}"?`,
-                            message: 'Deja de aparecer en el directorio y su personal pierde el acceso. Su historial de compras se conserva.',
+                            message: 'Sale del directorio y su personal pierde el acceso. El historial se conserva.',
                             confirmLabel: 'Eliminar',
                             tone: 'danger',
                           })
@@ -402,7 +401,7 @@ export function AdminBusinesses() {
               </div>
             </div>
 
-            {draft.id ? <MembersPanel businessId={draft.id} /> : <p className="muted small">Guarda el establecimiento para asignar su equipo.</p>}
+            {draft.id ? <MembersPanel businessId={draft.id} /> : <p className="muted small">Guarda para asignar su equipo.</p>}
 
             <FormActions onCancel={() => setDraft(null)} disabled={invalid} />
           </form>

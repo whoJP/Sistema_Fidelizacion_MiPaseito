@@ -37,6 +37,8 @@ export const MAX_STOCK = 1_000_000
 export const MAX_GOAL = 1_000_000
 export const MAX_TIER_STATUS = 10_000_000
 export const MAX_MULTIPLIER = 10
+/** Icons a level can show; the artwork lives in components/TierIcon.tsx. */
+export const TIER_ICON_KEYS = ['shield', 'medal', 'award', 'star', 'crown', 'gem', 'trophy', 'flame', 'zap', 'rocket', 'heart', 'sparkles'] as const
 export const MAX_SORT_ORDER = 1000
 export const MAX_SCOPE_ITEMS = 200
 

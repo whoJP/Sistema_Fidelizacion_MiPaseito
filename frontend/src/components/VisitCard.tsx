@@ -1,8 +1,8 @@
 import { useState, type CSSProperties } from 'react'
-import { Clock, Stamp } from 'lucide-react'
+import { Clock, Stamp, Ticket } from 'lucide-react'
 import { visitCard } from '../domain/engagement'
-import { personalPromotions } from '../domain/loyalty'
-import { formatDayMonth, formatDaysLeft, formatNumber, plural } from '../lib/format'
+import { getSetting, personalPromotions } from '../domain/loyalty'
+import { formatDayMonth, formatDaysLeft, formatNumber } from '../lib/format'
 import type { Database } from '../types/domain'
 import { ClubGem } from './BrandMark'
 import { prefersReducedMotion } from './ui'
@@ -47,9 +47,12 @@ export function VisitCard({ db, userId }: { db: Database; userId: number }) {
       <div className="visit-head">
         <span className="visit-eyebrow">
           <Stamp size={15} aria-hidden /> Tarjeta de visitas
+          {card.completedCards > 0 && <span className="visit-done">×{card.completedCards}</span>}
         </span>
-        <h2>{left === 1 ? 'Te falta una visita' : `Te faltan ${left} visitas`}</h2>
-        <p>Cada día que compras o visitas un espacio del Paseo suma un sello. Al completarla recibes un cupón de regreso y un giro gratis.</p>
+        <h2>{left === 1 ? '1 visita para tu premio' : `${left} visitas para tu premio`}</h2>
+        <span className="visit-prize">
+          <Ticket size={14} aria-hidden /> Cupón ×{formatNumber(getSetting(db, 'VISIT_CARD_MULTIPLIER'))} <span aria-hidden>·</span> <ClubGem size={13} /> Giro gratis
+        </span>
       </div>
 
       <ol className="visit-stamps" style={{ '--n': card.size } as CSSProperties} aria-label={`${card.stamps} de ${card.size} sellos`}>
@@ -63,18 +66,13 @@ export function VisitCard({ db, userId }: { db: Database; userId: number }) {
           )
         })}
       </ol>
-      <p className="visit-note">
-        {card.giftStamps > 0 && <>Los primeros {plural(card.giftStamps, 'sello va', 'sellos van')} de regalo. </>}
-        {card.completedCards > 0 && <>Ya completaste {plural(card.completedCards, 'tarjeta', 'tarjetas')}.</>}
-      </p>
-
       {coupon &&
         (opened.has(coupon.id) ? (
           <div className="coupon-open">
             <span className="coupon-big">×{formatNumber(coupon.value)}</span>
             <div>
               <strong>Cupón de regreso</strong>
-              <p>Tu próxima compra en cualquier local suma puntos ×{formatNumber(coupon.value)}. Se aplica solo, sin mostrar nada.</p>
+              <p>En tu próxima compra, automático</p>
               <span className="coupon-foot">
                 <Clock size={13} aria-hidden /> Hasta el {formatDayMonth(coupon.endsAt)} · {formatDaysLeft(coupon.endsAt)}
               </span>
@@ -87,8 +85,8 @@ export function VisitCard({ db, userId }: { db: Database; userId: number }) {
               <ClubGem size={22} />
             </span>
             <span className="envelope-text">
-              <strong>Completaste tu tarjeta</strong>
-              <span>Toca para abrir tu sobre</span>
+              <strong>Tarjeta completa</strong>
+              <span>Toca para abrir</span>
             </span>
           </button>
         ))}

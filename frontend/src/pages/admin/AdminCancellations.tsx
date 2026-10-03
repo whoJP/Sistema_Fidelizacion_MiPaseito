@@ -63,7 +63,7 @@ function DecisionModal({ request, decision, onClose }: Decision & { onClose: () 
               La compra #{tx.id} se anula y se le descuentan los puntos a <b>{customer && fullName(customer)}</b>. Escribe el motivo que verá el cliente;
               el resto del aviso se arma solo.
             </p>
-            <Field label="Motivo para el cliente" hint={`${note.trim().length}/${LIMITS.note} · completa la frase después de "Motivo:"`}>
+            <Field label="Motivo para el cliente" hint={`${note.trim().length}/${LIMITS.note}`}>
               <textarea rows={2} maxLength={LIMITS.note} value={note} onChange={(e) => setNote(e.target.value)} autoFocus />
             </Field>
             <div className="chips" aria-label="Motivos frecuentes">
@@ -123,7 +123,7 @@ export function AdminCancellations() {
     <div className="page">
       <PageHeader
         title="Solicitudes de anulación"
-        subtitle="Los encargados piden anular compras que ya no pueden deshacer. Si apruebas, la compra se anula y el cliente recibe un aviso con el motivo."
+        subtitle="Pedidos de los encargados · el cliente recibe aviso"
       />
       <div className="tabs">
         <button className={tab === 'pending' ? 'tab tab-active' : 'tab'} onClick={() => setTab('pending')}>

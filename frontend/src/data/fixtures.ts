@@ -261,10 +261,10 @@ export function buildDemoDatabase(): Database {
   ).forEach(([businessId, name, price, description]) => db.catalogItems.push(item(businessId, name, price, description)))
 
   db.tiers.push(
-    { id: 1, name: 'Bronce', minimumStatus: 0, pointsMultiplier: 1, sortOrder: 1, isActive: true },
-    { id: 2, name: 'Plata', minimumStatus: 1500, pointsMultiplier: 1.25, sortOrder: 2, isActive: true },
-    { id: 3, name: 'Oro', minimumStatus: 5000, pointsMultiplier: 1.5, sortOrder: 3, isActive: true },
-    { id: 4, name: 'Platinum', minimumStatus: 12000, pointsMultiplier: 2, sortOrder: 4, isActive: true },
+    { id: 1, name: 'Bronce', minimumStatus: 0, pointsMultiplier: 1, sortOrder: 1, isActive: true, icon: 'shield' },
+    { id: 2, name: 'Plata', minimumStatus: 1500, pointsMultiplier: 1.25, sortOrder: 2, isActive: true, icon: 'star' },
+    { id: 3, name: 'Oro', minimumStatus: 5000, pointsMultiplier: 1.5, sortOrder: 3, isActive: true, icon: 'crown' },
+    { id: 4, name: 'Platinum', minimumStatus: 12000, pointsMultiplier: 2, sortOrder: 4, isActive: true, icon: 'gem' },
   )
 
   db.systemSettings.push(

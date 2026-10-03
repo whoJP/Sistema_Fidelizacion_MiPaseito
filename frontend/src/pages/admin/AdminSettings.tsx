@@ -46,7 +46,7 @@ export function AdminSettings() {
   const resetDemo = async () => {
     const ok = await confirmDialog({
       title: '¿Restablecer los datos de demostración?',
-      message: 'Se borran todos los cambios hechos en la base de datos y se cierra la sesión.',
+      message: 'Se borran todos los cambios y se cierra la sesión.',
       confirmLabel: 'Restablecer',
       tone: 'danger',
     })
@@ -64,7 +64,7 @@ export function AdminSettings() {
 
   return (
     <div className="page">
-      <PageHeader title="Configuración" subtitle="Reglas generales del programa. Los cambios valen para las compras nuevas." />
+      <PageHeader title="Configuración" subtitle="Aplica a compras nuevas" />
 
       <form className="stack" onSubmit={save}>
         {GROUPS.map((group) => (

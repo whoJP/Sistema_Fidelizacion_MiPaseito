@@ -67,7 +67,7 @@ function ProfileForm({ user }: { user: User }) {
           <input required maxLength={LIMITS.personName} autoComplete="family-name" value={draft.lastName} onChange={set('lastName')} />
         </Field>
       </div>
-      <Field label="Correo electrónico" hint="Es el que usas para ingresar." error={errors.email}>
+      <Field label="Correo electrónico" error={errors.email}>
         <input required type="email" maxLength={LIMITS.email} autoComplete="email" value={draft.email} onChange={set('email')} />
       </Field>
       <Field label="Teléfono (opcional)" error={errors.phone}>
@@ -116,7 +116,7 @@ function PasswordForm() {
       <Field label="Contraseña actual">
         <input type="password" autoComplete="current-password" maxLength={LIMITS.passwordMax} value={current} onChange={(e) => setCurrent(e.target.value)} />
       </Field>
-      <Field label="Nueva contraseña" error={nextError} hint={`Mínimo ${LIMITS.passwordMin} caracteres, con letras y números.`}>
+      <Field label="Nueva contraseña" error={nextError} hint={`${LIMITS.passwordMin}+ caracteres, letras y números`}>
         <input type="password" autoComplete="new-password" maxLength={LIMITS.passwordMax} value={next} onChange={(e) => setNext(e.target.value)} />
       </Field>
       <Field label="Repite la nueva contraseña" error={mismatch}>
@@ -192,7 +192,7 @@ function BirthdayVerification() {
         <BadgeCheck size={22} aria-hidden />
         <div>
           <strong>Cumpleaños verificado: {formatLongDayKey(user.birthDate)}</strong>
-          <p className="muted small">Ese día tendrás puntos de regalo, un giro gratis, una recompensa a elección y los regalos de los locales.</p>
+          <p className="muted small">Ese día: puntos, giro gratis y regalos</p>
         </div>
       </div>
     )
@@ -204,8 +204,7 @@ function BirthdayVerification() {
         <div>
           <strong>En revisión</strong>
           <p className="muted small">
-            Enviaste tu fecha ({formatLongDayKey(state.request.birthDate)}) el {formatDate(state.request.createdAt)}. Te avisaremos cuando la administración
-            la apruebe.
+            {formatLongDayKey(state.request.birthDate)} · enviado el {formatDate(state.request.createdAt)}
           </p>
         </div>
       </div>
@@ -216,13 +215,10 @@ function BirthdayVerification() {
     <form className="stack" onSubmit={submit}>
       {state.status === 'REJECTED' && (
         <p className="kyc-rejected" role="alert">
-          No pudimos verificarlo: {state.request.reviewNote ?? 'los datos no coinciden.'} Vuelve a enviarlo.
+          No pudimos verificarlo: {state.request.reviewNote ?? 'los datos no coinciden.'}
         </p>
       )}
-      <p className="muted small">
-        Para darte los beneficios de cumpleaños necesitamos confirmar tu fecha con una foto de tu carnet. Solo la ve la administración del Paseo y la
-        borramos apenas la revisa.
-      </p>
+      <p className="muted small">Confírmalo con una foto de tu carnet.</p>
       <Field label="Fecha de nacimiento">
         <input
           type="date"
@@ -235,7 +231,7 @@ function BirthdayVerification() {
         />
       </Field>
       <div className="field">
-        <span className="field-label">Foto de tu carnet (lado de la fecha)</span>
+        <span className="field-label">Foto del carnet</span>
         {photo ? (
           <div className="kyc-preview">
             <img src={photo} alt="Vista previa del carnet" />

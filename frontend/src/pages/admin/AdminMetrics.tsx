@@ -90,7 +90,7 @@ export function AdminMetrics() {
     <div className="page">
       <PageHeader
         title="Métricas"
-        subtitle={`Del ${formatDateKey(period.from)} al ${formatDateKey(period.to)}. Solo cuentan las compras completadas.`}
+        subtitle={`Del ${formatDateKey(period.from)} al ${formatDateKey(period.to)}`}
         actions={
           <div className="row gap wrap">
             <button className="btn btn-ghost" onClick={() => download(`metricas_${period.from}_${period.to}.csv`, summaryCsv(m))}>

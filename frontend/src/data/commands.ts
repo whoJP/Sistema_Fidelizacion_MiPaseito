@@ -2,7 +2,7 @@
 // authenticated user as `actor`; the frontend only imports the types and calls them through `run()`.
 import * as A from './actions'
 import { SETTING_DEFAULTS } from '../domain/loyalty'
-import { MAX_SCOPE_ITEMS, isCalendarDate } from '../domain/validation'
+import { MAX_SCOPE_ITEMS, TIER_ICON_KEYS, isCalendarDate } from '../domain/validation'
 import type {
   BadgeType,
   BusinessMemberRole,
@@ -348,6 +348,7 @@ export const commands = {
         pointsMultiplier: num(data(input).pointsMultiplier, 'Multiplicador'),
         sortOrder: int(data(input).sortOrder, 'Orden'),
         isActive: data(input).isActive !== false,
+        icon: oneOf(data(input).icon, TIER_ICON_KEYS, 'Ícono'),
       },
       actor.id,
     ),

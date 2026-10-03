@@ -4,11 +4,15 @@ import { BrowserRouter } from 'react-router-dom'
 import '@fontsource/prata'
 import '@fontsource-variable/jost'
 import App from './App'
+import { installTapFeedback } from './lib/motion'
 import './index.css'
+
+installTapFeedback()
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <BrowserRouter>
+    {/* Synchronous navigation, so a View Transition captures the new page inside flushSync. */}
+    <BrowserRouter useTransitions={false}>
       <App />
     </BrowserRouter>
   </StrictMode>,

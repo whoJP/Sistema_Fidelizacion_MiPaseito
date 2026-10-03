@@ -19,7 +19,7 @@ export function UndoPurchase({ tx, after = null }: { tx: Transaction; after?: Re
     const row = rowOf(e.currentTarget.parentElement)
     const ok = await confirmDialog({
       title: '¿Deshacer este registro?',
-      message: `La compra de ${formatMoney(tx.amount)} se anula y el cliente no recibe sus puntos. Después podrás registrarla de nuevo si hace falta.`,
+      message: `La compra de ${formatMoney(tx.amount)} se anula y no suma puntos.`,
       confirmLabel: 'Deshacer registro',
       cancelLabel: 'Mantener',
       tone: 'danger',

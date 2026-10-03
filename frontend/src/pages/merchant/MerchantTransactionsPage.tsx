@@ -52,11 +52,8 @@ function RequestModal({ tx, onClose }: { tx: Transaction; onClose: () => void })
         <p>
           Compra #{tx.id} de <b>{customer && fullName(customer)}</b> por <b>{formatMoney(tx.amount)}</b>, registrada el {formatDateTime(tx.createdAt)}.
         </p>
-        <p className="muted small">
-          La administración del Paseo revisará tu pedido. Si lo aprueba, la compra se anula y se avisa al cliente; si lo rechaza, verás su respuesta
-          aquí. Solo se puede enviar una solicitud por compra.
-        </p>
-        <Field label="Motivo" hint={`${reason.trim().length}/${LIMITS.reason} · mínimo ${LIMITS.reasonMin} caracteres`}>
+        <p className="muted small">La administración la revisa. Una solicitud por compra.</p>
+        <Field label="Motivo" hint={`${reason.trim().length}/${LIMITS.reason} · mínimo ${LIMITS.reasonMin}`}>
           <textarea rows={3} maxLength={LIMITS.reason} value={reason} onChange={(e) => setReason(e.target.value)} autoFocus />
         </Field>
         <div className="chips" aria-label="Motivos frecuentes">
@@ -101,7 +98,7 @@ export function MerchantTransactionsPage() {
     <div className="page">
       <PageHeader
         title="Movimientos"
-        subtitle={`Compras registradas en ${business.name}. Un registro se puede deshacer durante 2 minutos; después, el encargado solicita la anulación a la administración del Paseo.`}
+        subtitle={`${business.name} · se puede deshacer por 2 min`}
       />
       <div className="stats-row">
         <Stat label="Compras hoy" value={todayTxs.length} hint={formatMoney(todayTxs.reduce((s, t) => s + t.amount, 0))} />
@@ -133,7 +130,7 @@ export function MerchantTransactionsPage() {
                     </span>
                     {r.reviewNote && (
                       <span className="small request-reply">
-                        <span className="muted">Respuesta de la administración:</span> {r.reviewNote}
+                        <span className="muted">Respuesta:</span> {r.reviewNote}
                       </span>
                     )}
                     <span className="muted small">

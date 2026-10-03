@@ -1,8 +1,12 @@
-import { useState } from 'react'
-import { CheckCircle2, Lock, TimerOff } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { CheckCircle2, Clock, Lock, MapPin, TimerOff } from 'lucide-react'
+import { ClubGem } from '../../components/BrandMark'
+import { Sparks } from '../../components/Sparks'
+import { haptic } from '../../lib/motion'
 import { useDb } from '../../data/store'
 import { redemptionExpiresAt } from '../../data/actions'
 import { MemberCard } from '../../components/MemberCard'
+import { TierChip } from '../../components/TierIcon'
 import {
   currentTier,
   pointsBalance,
@@ -16,7 +20,7 @@ import { businessLocation, formatCountdown, formatDateTime, formatInt } from '..
 import { useNow } from '../../lib/useNow'
 import { useUser } from '../../session'
 import type { Redemption, Reward } from '../../types/domain'
-import { Badge, Card, Empty, Modal, PageHeader, TimeBar, flash, rowOf, run } from '../../components/ui'
+import { Badge, Card, Empty, Modal, PageHeader, Progress, TimeBar, flash, rowOf, run } from '../../components/ui'
 import { confirmDialog } from '../../components/dialog'
 const STATUS_LABEL: Record<Redemption['status'], [string, 'accent' | 'success' | 'neutral' | 'danger']> = {
   PENDING: ['Pendiente', 'accent'],
@@ -85,10 +89,17 @@ export function RewardsPage() {
 
   return (
     <div className="page">
-      <PageHeader title="Recompensas" subtitle={<>Tienes <b>{formatInt(balance)}</b> puntos disponibles. Cada recompensa se canjea en su establecimiento.</>} />
+      <PageHeader
+        title="Recompensas"
+        actions={
+          <span className="balance-pill">
+            <ClubGem size={15} /> <b className="tabular">{formatInt(balance)}</b> pts
+          </span>
+        }
+      />
 
       {businessesWithRewards.length > 1 && (
-        <div className="chips">
+        <div className="chips chips-scroll">
           <button className={`chip ${businessId === null ? 'chip-active' : ''}`} onClick={() => setBusinessId(null)}>
             Todos
           </button>
@@ -101,39 +112,42 @@ export function RewardsPage() {
       )}
 
       {rewards.length === 0 ? (
-        <Empty>Aún no hay recompensas publicadas.</Empty>
+        <Empty>Pronto habrá recompensas</Empty>
       ) : (
-        <div className="cards-grid">
+        <div className="cards-grid rewards-grid">
           {rewards.map((reward) => {
             const blocker = rewardBlocker(db, reward, user.id)
             const tier = reward.minimumTierId ? db.tiers.find((t) => t.id === reward.minimumTierId) : null
             const stock = rewardRemainingStock(db, reward)
+            const business = db.businesses.find((b) => b.id === reward.businessId)
+            const conditions = [...rewardConditions(db, reward), reward.description].filter(Boolean)
             return (
-              <Card key={reward.id} className="reward">
-                <div className="row between">
+              <Card key={reward.id} className={`reward ${blocker === null ? 'is-ready' : ''}`}>
+                <div className="reward-top">
                   <strong className="reward-cost">
                     {formatInt(reward.pointsCost)}
-                    <small>puntos</small>
+                    <small>pts</small>
                   </strong>
-                  {tier && (
-                    <Badge tone={blocker === 'TIER' ? 'warning' : 'neutral'}>
-                      {blocker === 'TIER' && <Lock size={12} aria-hidden />} {tier.name}+
-                    </Badge>
+                  {tier ? (
+                    <span className="row gap">
+                      {blocker === 'TIER' && <Lock size={13} className="muted" aria-label="Bloqueada" />}
+                      <TierChip tier={tier} small />
+                    </span>
+                  ) : (
+                    stock !== null && stock <= 10 && <Badge tone="warning">Quedan {stock}</Badge>
                   )}
                 </div>
                 <h3>{rewardTitle(db, reward)}</h3>
-                <p className="reward-where">{whereLabel(reward.id)}</p>
-                {[...rewardConditions(db, reward), reward.description].filter(Boolean).map((c) => (
-                  <p key={c} className="muted small">
-                    {c}
-                  </p>
-                ))}
-                {stock !== null && <p className="small muted">Quedan {stock}</p>}
-                <button className="btn btn-block" disabled={blocker !== null} onClick={() => setConfirm(reward)}>
+                <p className="reward-where">
+                  <MapPin size={13} aria-hidden /> {business?.name}
+                </p>
+                {conditions.length > 0 && <p className="reward-cond">{conditions.join(' · ')}</p>}
+                {blocker === 'POINTS' && <Progress value={balance} max={reward.pointsCost} />}
+                <button className={`btn btn-block ${blocker === null ? 'btn-primary' : ''}`} disabled={blocker !== null} onClick={() => setConfirm(reward)}>
                   {blocker === 'POINTS'
-                    ? `Te faltan ${formatInt(reward.pointsCost - balance)} puntos`
+                    ? `Faltan ${formatInt(reward.pointsCost - balance)}`
                     : blocker === 'TIER'
-                      ? `Requiere nivel ${tier?.name}`
+                      ? `Nivel ${tier?.name}`
                       : blocker === 'STOCK'
                         ? 'Agotado'
                         : 'Canjear'}
@@ -146,7 +160,7 @@ export function RewardsPage() {
 
       <h2 className="section-title">Mis canjes</h2>
       {mine.length === 0 ? (
-        <Empty>Todavía no has canjeado recompensas.</Empty>
+        <Empty>Aún sin canjes</Empty>
       ) : (
         <Card>
           <ul className="list">
@@ -168,8 +182,8 @@ export function RewardsPage() {
                     <Badge tone={tone}>{label}</Badge>
                     {r.status === 'PENDING' && (
                       <>
-                        <button className="btn btn-sm" onClick={() => setShowing(r.id)}>
-                          Usar en el local
+                        <button className="btn btn-primary btn-sm" onClick={() => setShowing(r.id)}>
+                          Usar
                         </button>
                         {r.origin === 'POINTS' && (
                           <button className="btn btn-ghost btn-sm" onClick={(e) => cancel(r, e.currentTarget)}>
@@ -188,14 +202,28 @@ export function RewardsPage() {
 
       {confirm && (
         <Modal title="Confirmar canje" onClose={() => setConfirm(null)}>
-          <p>
-            Vas a canjear <b>{rewardTitle(db, confirm)}</b> en <b>{whereLabel(confirm.id)}</b> por <b>{formatInt(confirm.pointsCost)} puntos</b>. Te
-            quedarán {formatInt(balance - confirm.pointsCost)} puntos.
-          </p>
-          <p className="muted small">
-            Tendrás {redemptionMinutes} minutos para mostrar tu tarjeta en el establecimiento: canjea cuando ya estés ahí. Si no se usa a tiempo, los
-            puntos vuelven a tu saldo.
-          </p>
+          <div className="redeem-sum">
+            <h3>{rewardTitle(db, confirm)}</h3>
+            <span className="reward-where">
+              <MapPin size={13} aria-hidden /> {whereLabel(confirm.id)}
+            </span>
+            {[...rewardConditions(db, confirm), confirm.description].filter(Boolean).map((c) => (
+              <span key={c} className="muted small">
+                {c}
+              </span>
+            ))}
+            <div className="redeem-math">
+              <span>
+                <b className="tabular">−{formatInt(confirm.pointsCost)}</b> pts
+              </span>
+              <span className="muted">
+                Te quedan <b className="tabular">{formatInt(balance - confirm.pointsCost)}</b>
+              </span>
+            </div>
+            <span className="redeem-note">
+              <Clock size={14} aria-hidden /> Válido {redemptionMinutes} min · canjea ya en el local
+            </span>
+          </div>
           <div className="row end gap">
             <button className="btn btn-ghost" onClick={() => setConfirm(null)}>
               Volver
@@ -232,6 +260,10 @@ function RedemptionPass({
   const user = useUser()
   const now = useNow(500)
   const r = db.redemptions.find((x) => x.id === redemptionId)
+  const validated = r?.status === 'REDEEMED'
+  useEffect(() => {
+    if (validated) haptic([18, 60, 18, 60, 40])
+  }, [validated])
   if (!r) return null
   const created = new Date(r.createdAt).getTime()
   const expires = redemptionExpiresAt(db, r.createdAt, r.expiresAt).getTime()
@@ -241,12 +273,13 @@ function RedemptionPass({
   if (r.status === 'REDEEMED')
     return (
       <div className="stack center pass-done">
-        <span className="pass-icon is-success" aria-hidden>
+        <span className="pass-icon is-success is-celebrating" aria-hidden>
           <CheckCircle2 size={32} />
+          <Sparks count={16} spread={64} />
         </span>
         <h3>¡Canje validado!</h3>
         <p className="muted">
-          Disfruta tu <b>{title(r.rewardId)}</b> en {where(r.rewardId)}.
+          Disfruta tu <b>{title(r.rewardId)}</b>
         </p>
         <button className="btn btn-primary" onClick={onClose}>
           Listo
@@ -263,10 +296,10 @@ function RedemptionPass({
         <h3>{r.status === 'CANCELLED' ? 'Canje cancelado' : gift ? 'Este regalo venció' : 'El código expiró'}</h3>
         <p className="muted">
           {gift
-            ? 'Los regalos tienen fecha de vencimiento. ¡Que no se te pase el próximo!'
+            ? '¡Que no se te pase el próximo!'
             : r.status === 'EXPIRED' || r.status === 'CANCELLED'
-              ? `Te devolvimos ${formatInt(r.pointsSpent)} puntos. Puedes volver a canjear cuando estés en el establecimiento.`
-              : `Estamos devolviendo tus ${formatInt(r.pointsSpent)} puntos; se verán en tu saldo en unos segundos.`}
+              ? `Recuperaste ${formatInt(r.pointsSpent)} pts`
+              : `Devolviendo ${formatInt(r.pointsSpent)} pts…`}
         </p>
         <button className="btn" onClick={onClose}>
           Cerrar
@@ -278,10 +311,10 @@ function RedemptionPass({
     <div className="stack center">
       <h3>{title(r.rewardId)}</h3>
       <p className="muted small">
-        Muestra tu tarjeta en <b>{where(r.rewardId)}</b>: al escanearla verán este canje y lo validan.
+        Muestra tu tarjeta en <b>{where(r.rewardId)}</b>
       </p>
       <div className="pass-card">
-        <MemberCard user={user} tierName={currentTier(db, user.id)?.name ?? null} points={pointsBalance(db, user.id)} revealed locked onToggle={() => {}} />
+        <MemberCard user={user} tier={currentTier(db, user.id)} points={pointsBalance(db, user.id)} revealed locked onToggle={() => {}} />
       </div>
       {gift && expires - now > LONG_VALIDITY_MS ? (
         <p className="small">
@@ -296,11 +329,9 @@ function RedemptionPass({
           <TimeBar key={r.id} start={created} end={expires} now={now} />
         </div>
       )}
-      <p className="muted small">
-        {gift ? 'Es un regalo: no usa tus puntos.' : `Si no se usa a tiempo, los ${formatInt(r.pointsSpent)} puntos vuelven a tu saldo.`}
-      </p>
+      <p className="muted small">{gift ? 'Regalo · no usa tus puntos' : 'Si vence, recuperas tus puntos'}</p>
       <p className="pass-fallback small">
-        ¿No pueden escanear? Dicta el código del canje <code className="token">{r.verificationToken}</code>
+        Código <code className="token">{r.verificationToken}</code>
       </p>
     </div>
   )
@@ -313,5 +344,5 @@ function ExpiresIn({ redemption: r }: { redemption: Redemption }) {
   const left = expires.getTime() - now
   if (left > LONG_VALIDITY_MS) return <>Válido hasta el {formatDateTime(expires.toISOString())}</>
   if (left > 0) return <>Vence en {formatCountdown(left)}</>
-  return <>{r.origin === 'POINTS' ? 'Expiró, tus puntos vuelven a tu saldo' : 'Venció'}</>
+  return <>{r.origin === 'POINTS' ? 'Expiró · puntos devueltos' : 'Venció'}</>
 }

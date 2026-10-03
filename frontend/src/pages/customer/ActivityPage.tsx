@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { CalendarClock } from 'lucide-react'
 import { useDb } from '../../data/store'
 import { pointsExpiry, prizeTitle } from '../../domain/engagement'
-import { getSetting, pointsBalance, purchaseLines, rewardTitle, statusTotal } from '../../domain/loyalty'
+import { pointsBalance, purchaseLines, rewardTitle, statusTotal } from '../../domain/loyalty'
 import {
   POINT_MOVEMENT_LABELS,
   STATUS_MOVEMENT_LABELS,
@@ -14,7 +14,7 @@ import {
 } from '../../lib/format'
 import { useUser } from '../../session'
 import type { Database } from '../../types/domain'
-import { Badge, Card, Empty, PageHeader } from '../../components/ui'
+import { Badge, Card, Empty, PageHeader, Stat } from '../../components/ui'
 
 type Tab = 'points' | 'status' | 'purchases' | 'notices'
 
@@ -74,19 +74,16 @@ export function ActivityPage() {
 
   return (
     <div className="page">
-      <PageHeader
-        title="Actividad"
-        subtitle={
-          <>
-            Tienes <b>{formatInt(pointsBalance(db, user.id))}</b> puntos para canjear y <b>{formatInt(statusTotal(db, user.id))}</b> puntos de nivel.
-          </>
-        }
-      />
+      <PageHeader title="Actividad" />
+      <div className="stats-row">
+        <Stat label="Puntos" value={formatInt(pointsBalance(db, user.id))} />
+        <Stat label="De nivel" value={formatInt(statusTotal(db, user.id))} />
+      </div>
       <div className="tabs">
         {(
           [
             ['points', 'Puntos'],
-            ['status', 'Puntos de nivel'],
+            ['status', 'Nivel'],
             ['purchases', 'Compras'],
             ['notices', 'Avisos'],
           ] as const
@@ -101,9 +98,9 @@ export function ActivityPage() {
         <div className={`expiry ${expiry.soon ? 'is-soon' : ''}`}>
           <CalendarClock size={18} aria-hidden />
           <p>
-            Tus {formatInt(expiry.balance)} puntos vencen el <b>{formatDateKey(expiry.expiresOn)}</b>
-            {expiry.soon && <> ({expiry.daysLeft <= 0 ? 'hoy' : expiry.daysLeft === 1 ? 'mañana' : `en ${formatInt(expiry.daysLeft)} días`})</>}. Cada
-            compra o visita a un espacio del Paseo renueva el plazo por {formatInt(getSetting(db, 'POINTS_EXPIRATION_MONTHS'))} meses.
+            Vencen el <b>{formatDateKey(expiry.expiresOn)}</b>
+            {expiry.soon && <> ({expiry.daysLeft <= 0 ? 'hoy' : expiry.daysLeft === 1 ? 'mañana' : `en ${formatInt(expiry.daysLeft)} días`})</>} · comprar
+            los renueva
           </p>
         </div>
       )}
@@ -170,7 +167,7 @@ export function ActivityPage() {
                         </Badge>
                       )}
                       <span>{formatMoney(t.amount)}</span>
-                      <strong className="success">{signed(earned)} puntos</strong>
+                      <strong className="success">{signed(earned)} pts</strong>
                     </div>
                   </li>
                 )

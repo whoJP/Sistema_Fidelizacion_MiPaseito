@@ -255,8 +255,8 @@ function syncVisitCard(db: Database, userId: number, at: Date): boolean {
     notifyUser(
       db,
       userId,
-      'Completaste tu tarjeta de visitas',
-      `Tienes un cupón de regreso: tu próxima compra en cualquier local suma puntos ×${multiplier} (vale ${days} días) y un giro gratis en la ruleta.`,
+      '¡Tarjeta de visitas completa!',
+      `Tu próxima compra suma puntos ×${multiplier} (${days} días) y tienes un giro gratis.`,
       at,
     )
     issued += 1
@@ -1788,13 +1788,13 @@ export function reviewKyc(
     notifyUser(
       db,
       user.id,
-      'Tu cumpleaños quedó verificado',
-      `Registramos tu cumpleaños el ${formatLongDayKey(request.birthDate)}. Ese día tendrás puntos de regalo, un giro gratis, una recompensa a elección y los regalos de los locales.`,
+      'Cumpleaños verificado',
+      `El ${formatLongDayKey(request.birthDate)} te esperan regalos.`,
       at,
     )
     grantBirthdayBonus(db, user, at)
   } else {
-    notifyUser(db, user.id, 'No pudimos verificar tu cumpleaños', `${request.reviewNote} Puedes enviarlo de nuevo desde Mi perfil.`, at)
+    notifyUser(db, user.id, 'No pudimos verificar tu cumpleaños', `${request.reviewNote} Reintenta desde Mi perfil.`, at)
   }
   audit(db, actorId, `KYC_${input.decision}`, 'KycRequest', request.id, at)
   return request
@@ -1817,8 +1817,8 @@ export function grantBirthdayBonus(db: Database, user: User, at = new Date()): b
     db,
     user.id,
     `¡Feliz cumpleaños, ${user.firstName}!`,
-    `Te regalamos ${formatInt(bonus)} puntos, un giro en la ruleta y una recompensa a elección.${
-      gifts ? ` Además, ${gifts} ${gifts === 1 ? 'local tiene' : 'locales tienen'} un regalo para ti con tu compra de hoy.` : ''
+    `Te regalamos ${formatInt(bonus)} puntos, un giro y una recompensa a elección.${
+      gifts ? ` Y ${gifts} ${gifts === 1 ? 'local tiene' : 'locales tienen'} un regalo con tu compra de hoy.` : ''
     }`,
     at,
   )
@@ -1946,7 +1946,7 @@ export function runDailyJobs(db: Database, at = new Date()) {
         db,
         user.id,
         'Tus puntos vencieron',
-        `Vencieron ${formatInt(expiry.balance)} puntos porque pasaron ${getSetting(db, 'POINTS_EXPIRATION_MONTHS')} meses sin sumar. Tu nivel se mantiene: vuelve a comprar para empezar a juntar de nuevo.`,
+        `Vencieron ${formatInt(expiry.balance)} puntos por inactividad. Tu nivel se mantiene.`,
         at,
       )
       summary.expired += 1
@@ -1960,7 +1960,7 @@ export function runDailyJobs(db: Database, at = new Date()) {
           db,
           user.id,
           'Tus puntos vencen pronto',
-          `Tus ${formatInt(expiry.balance)} puntos vencen el ${formatLongDayKey(expiry.expiresOn)}. Cualquier compra o visita a un espacio del Paseo renueva el plazo por ${getSetting(db, 'POINTS_EXPIRATION_MONTHS')} meses.`,
+          `Tus ${formatInt(expiry.balance)} puntos vencen el ${formatLongDayKey(expiry.expiresOn)}. Una compra los renueva.`,
           at,
         )
         summary.expiryNotices += 1
@@ -1991,7 +1991,7 @@ export function runDailyJobs(db: Database, at = new Date()) {
         db,
         user.id,
         profile.lastPurchaseAt ? `Te extrañamos, ${user.firstName}` : `Tu primera compra suma doble, ${user.firstName}`,
-        `${category ? `Tu próxima compra en ${category.name}` : 'Tu próxima compra en cualquier local'} suma puntos ×${multiplier}. Válido hasta el ${formatLongDayKey(localDateKey(promo.endsAt))}.`,
+        `Tu próxima compra${category ? ` en ${category.name}` : ''} suma puntos ×${multiplier}, hasta el ${formatLongDayKey(localDateKey(promo.endsAt))}.`,
         at,
       )
       summary.reactivations += 1
@@ -2022,7 +2022,7 @@ export function runDailyJobs(db: Database, at = new Date()) {
           db,
           user.id,
           `¡Cumples ${label} en Paseo Club!`,
-          `Para celebrarlo, esta semana tus compras en ${category ? category.name : 'cualquier local'} suman puntos ×${multiplier}, hasta el ${formatLongDayKey(localDateKey(promo.endsAt))}.`,
+          `Tus compras${category ? ` en ${category.name}` : ''} suman puntos ×${multiplier} hasta el ${formatLongDayKey(localDateKey(promo.endsAt))}.`,
           at,
         )
         summary.anniversaries += 1

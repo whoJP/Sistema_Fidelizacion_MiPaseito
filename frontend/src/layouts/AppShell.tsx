@@ -1,4 +1,4 @@
-import { Suspense, useEffect, useRef, useState } from 'react'
+import { Suspense, useEffect, useRef, useState, type CSSProperties } from 'react'
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import {
   AlertTriangle,
@@ -42,7 +42,9 @@ import type { User } from '../types/domain'
 import { Toaster } from '../components/ui'
 import { DialogHost } from '../components/dialog'
 import { BrandMark } from '../components/BrandMark'
+import { Ambient } from '../components/Ambient'
 import { MEMBER_ROLE_LABELS } from '../lib/format'
+import { haptic, useDragToClose, useLinkTransitions } from '../lib/motion'
 
 interface NavItem {
   to: string
@@ -65,8 +67,8 @@ const CUSTOMER_NAV: NavItem[] = [
   { to: '/app/passport', label: 'Pasaporte', icon: MapIcon, primary: true },
   { to: '/app/ranking', label: 'Ranking', icon: Trophy },
   { to: '/app/spin', label: 'Ruleta', icon: Disc3 },
-  { to: '/app/scan', label: 'Visitar un espacio', short: 'Espacios', icon: ScanLine },
-  { to: '/app/directory', label: 'Directorio', icon: Compass },
+  { to: '/app/scan', label: 'Espacios', icon: ScanLine },
+  { to: '/app/directory', label: 'Locales', icon: Compass },
   { to: '/app/activity', label: 'Actividad', icon: History },
   { to: '/app/badges', label: 'Insignias', icon: Award },
 ]
@@ -138,9 +140,11 @@ export function AppShell() {
 
   return (
     <div className={`shell shell-${role}`}>
+      <LinkTransitions order={[...tabs, ...more].map((item) => item.to)} />
       <a href="#main" className="skip-link">
         Saltar al contenido
       </a>
+      {role === 'customer' && <Ambient />}
       <aside className="sidebar">
         <div className="brand">
           {role === 'admin' ? (
@@ -217,13 +221,7 @@ export function AppShell() {
             <span className="staff-role">{roleLabel}</span>
           </div>
         )}
-        <Suspense
-          fallback={
-            <p className="page muted" role="status">
-              Cargando…
-            </p>
-          }
-        >
+        <Suspense fallback={<PageSkeleton />}>
           <Outlet />
         </Suspense>
       </main>
@@ -235,13 +233,36 @@ export function AppShell() {
   )
 }
 
+function LinkTransitions({ order }: { order: string[] }) {
+  useLinkTransitions(order)
+  return null
+}
+
+function PageSkeleton() {
+  return (
+    <div className="page skeleton" role="status" aria-label="Cargando">
+      <span className="sk sk-title" />
+      <span className="sk sk-line" />
+      <div className="sk-grid">
+        <span className="sk sk-card" />
+        <span className="sk sk-card" />
+        <span className="sk sk-card" />
+      </div>
+    </div>
+  )
+}
+
 /** Phone navigation: the main sections in a bottom bar and the rest in a "Más" sheet. */
 function TabBar({ tabs, more }: { tabs: NavItem[]; more: NavItem[] }) {
   const { pathname } = useLocation()
   const [open, setOpen] = useState(false)
+  const drag = useDragToClose('.sheet', () => setOpen(false), open)
   const isActive = (item: NavItem) => (item.end ? pathname === item.to : pathname === item.to || pathname.startsWith(`${item.to}/`))
   const moreActive = more.some(isActive)
   const moreCount = more.reduce((s, item) => s + (item.count ?? 0), 0)
+  const slots = tabs.length + (more.length > 0 ? 1 : 0)
+  const activeTab = tabs.findIndex(isActive)
+  const lit = open || (activeTab < 0 && moreActive) ? tabs.length : activeTab
 
   useEffect(() => {
     if (!open) return
@@ -252,9 +273,19 @@ function TabBar({ tabs, more }: { tabs: NavItem[]; more: NavItem[] }) {
 
   return (
     <>
-      <nav className="tabbar" aria-label="Secciones">
+      <nav className="tabbar" aria-label="Secciones" style={{ '--tab-n': slots } as CSSProperties}>
+        <span className={`tabbar-light ${lit < 0 ? 'is-off' : ''}`} style={{ '--tab-i': Math.max(0, lit) } as CSSProperties} aria-hidden />
         {tabs.map((item) => (
-          <NavLink key={item.to} to={item.to} end={item.end} className="tab-link" onClick={() => setOpen(false)}>
+          <NavLink
+            key={item.to}
+            to={item.to}
+            end={item.end}
+            className="tab-link"
+            onClick={() => {
+              setOpen(false)
+              if (!isActive(item)) haptic(6)
+            }}
+          >
             <span className="tab-icon">
               <item.icon size={22} aria-hidden />
               {!!item.count && <span className="tab-count">{item.count}</span>}
@@ -263,7 +294,15 @@ function TabBar({ tabs, more }: { tabs: NavItem[]; more: NavItem[] }) {
           </NavLink>
         ))}
         {more.length > 0 && (
-          <button type="button" className={`tab-link ${open || moreActive ? 'active' : ''}`} aria-expanded={open} onClick={() => setOpen((v) => !v)}>
+          <button
+            type="button"
+            className={`tab-link ${open || moreActive ? 'active' : ''}`}
+            aria-expanded={open}
+            onClick={() => {
+              haptic(6)
+              setOpen((v) => !v)
+            }}
+          >
             <span className="tab-icon">
               <LayoutGrid size={22} aria-hidden />
               {moreCount > 0 && <span className="tab-count">{moreCount}</span>}
@@ -275,16 +314,25 @@ function TabBar({ tabs, more }: { tabs: NavItem[]; more: NavItem[] }) {
       {open && (
         <div className="sheet-backdrop" onClick={() => setOpen(false)}>
           <div className="sheet" role="dialog" aria-modal="true" aria-label="Más secciones" onClick={(e) => e.stopPropagation()}>
-            <span className="sheet-grip" aria-hidden />
-            <div className="row between">
-              <h2 className="small-title">Más secciones</h2>
-              <button type="button" className="icon-btn" onClick={() => setOpen(false)} aria-label="Cerrar">
-                <X size={20} />
-              </button>
+            <div className="sheet-top" {...drag}>
+              <span className="sheet-grip" aria-hidden />
+              <div className="row between">
+                <h2 className="small-title">Más secciones</h2>
+                <button type="button" className="icon-btn" onClick={() => setOpen(false)} aria-label="Cerrar">
+                  <X size={20} />
+                </button>
+              </div>
             </div>
             <nav className="sheet-grid" aria-label="Más secciones">
-              {more.map((item) => (
-                <NavLink key={item.to} to={item.to} end={item.end} className="sheet-link" onClick={() => setOpen(false)}>
+              {more.map((item, i) => (
+                <NavLink
+                  key={item.to}
+                  to={item.to}
+                  end={item.end}
+                  className="sheet-link"
+                  style={{ '--i': i } as CSSProperties}
+                  onClick={() => setOpen(false)}
+                >
                   <item.icon size={22} aria-hidden />
                   <span>{item.label}</span>
                   {!!item.count && <span className="tab-count">{item.count}</span>}

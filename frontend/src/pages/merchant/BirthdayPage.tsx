@@ -109,7 +109,7 @@ export function BirthdayPage() {
     <div className="page">
       <PageHeader
         title="Cumpleaños"
-        subtitle={`${business.name} · El día de su cumpleaños, el cliente recibe tu regalo con una compra en el local. Una vez al año.`}
+        subtitle={`${business.name} · regalo con compra, 1 vez al año`}
       />
       <div className="detail-grid">
         <div className="stack">
@@ -134,16 +134,13 @@ export function BirthdayPage() {
             {perk?.isActive ? (
               <>
                 <p className="muted small">
-                  Requisitos: cumpleaños verificado, que sea hoy y una compra de hoy registrada en {business.name}. Registra la compra primero en{' '}
-                  <Link to={`/merchant/${business.id}`}>Registrar compra</Link>.
+                  Primero <Link to={`/merchant/${business.id}`}>registra su compra</Link> de hoy.
                 </p>
-                <ScanOrCode kind="customer" onSubmit={validate} busy={busy} scanLabel="Pide al cliente su QR de Paseo Club y apúntale con la cámara" />
+                <ScanOrCode kind="customer" onSubmit={validate} busy={busy} scanLabel="Escanea el QR del cliente" />
               </>
             ) : (
               <Empty>
-                {isManager
-                  ? 'Configura tu regalo de cumpleaños para empezar a entregarlo.'
-                  : 'Tu local aún no tiene un regalo de cumpleaños activo. Pídele al encargado que lo configure.'}
+                {isManager ? 'Configura tu regalo para empezar.' : 'Sin regalo activo. Pídele al encargado que lo configure.'}
               </Empty>
             )}
           </Card>
@@ -168,7 +165,7 @@ export function BirthdayPage() {
                 <Badge tone={perk.isActive ? 'success' : 'neutral'}>{perk.isActive ? 'Activo' : 'Pausado'}</Badge>
               </div>
             ) : (
-              <Empty>Sin regalo configurado. Los clientes lo ven en su tarjeta de cumpleaños junto a los regalos de otros locales.</Empty>
+              <Empty>Sin regalo configurado.</Empty>
             )}
           </Card>
 
@@ -236,7 +233,7 @@ export function BirthdayPage() {
             {draft.type === 'FREE_PRODUCT' &&
               (products.length === 0 ? (
                 <p className="muted small">
-                  Primero agrega productos a tu <Link to={`/merchant/${business.id}/catalog`}>catálogo</Link>; el regalo se elige de ahí.
+                  Primero agrega productos a tu <Link to={`/merchant/${business.id}/catalog`}>catálogo</Link>.
                 </p>
               ) : (
                 <div className="grid-2">

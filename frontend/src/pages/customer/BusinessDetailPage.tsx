@@ -1,5 +1,5 @@
 import { Link, useParams } from 'react-router-dom'
-import { ArrowLeft, Clock, MapPin, Megaphone, Phone } from 'lucide-react'
+import { ArrowLeft, Clock, Gift, MapPin, Megaphone, Phone } from 'lucide-react'
 import { useDb } from '../../data/store'
 import { businessCategoryIds, discoveredBusinessIds, promotionsForBusiness, rewardTitle, visibleRewards } from '../../domain/loyalty'
 import { DAY_LABELS, DAYS_IN_ORDER, businessLocation, formatInt, formatMoney } from '../../lib/format'
@@ -33,7 +33,7 @@ export function BusinessDetailPage() {
   return (
     <div className="page">
       <Link to="/app/directory" className="back">
-        <ArrowLeft size={16} /> Directorio
+        <ArrowLeft size={16} /> Locales
       </Link>
       <PageHeader
         title={business.name}
@@ -44,7 +44,7 @@ export function BusinessDetailPage() {
                 {c.name}
               </span>
             ))}
-            {discoveredBusinessIds(db, user.id).has(business.id) ? <Badge tone="success">Descubierto</Badge> : <Badge>Nuevo para ti</Badge>}
+            {discoveredBusinessIds(db, user.id).has(business.id) ? <Badge tone="success">Sellado</Badge> : <Badge>Nuevo</Badge>}
           </span>
         }
       />
@@ -79,10 +79,24 @@ export function BusinessDetailPage() {
             </Card>
           )}
 
+          {rewards.length > 0 && (
+            <Card>
+              <CardHead icon={Gift} title="Recompensas" action={<MoreLink to="/app/rewards">Canjear</MoreLink>} />
+              <ul className="list">
+                {rewards.map((r) => (
+                  <li key={r.id} className="list-row">
+                    <span>{rewardTitle(db, r)}</span>
+                    <strong className="tabular accent">{formatInt(r.pointsCost)} pts</strong>
+                  </li>
+                ))}
+              </ul>
+            </Card>
+          )}
+
           <Card>
             <h2>Catálogo</h2>
             {catalog.length === 0 ? (
-              <p className="muted">Este establecimiento aún no publicó su catálogo.</p>
+              <p className="muted small">Sin catálogo aún</p>
             ) : (
               <ul className="list">
                 {catalog.map((item) => (
@@ -106,7 +120,7 @@ export function BusinessDetailPage() {
           <Card>
             <CardHead icon={Clock} title="Horario" />
             {schedules.length === 0 ? (
-              <p className="muted small">Horario no publicado.</p>
+              <p className="muted small">Sin horario publicado</p>
             ) : (
               <ul className="schedule">
                 {DAYS_IN_ORDER.map((day) => {
@@ -121,20 +135,6 @@ export function BusinessDetailPage() {
               </ul>
             )}
           </Card>
-          {rewards.length > 0 && (
-            <Card>
-              <h2>Recompensas aquí</h2>
-              <ul className="list">
-                {rewards.map((r) => (
-                  <li key={r.id} className="list-row">
-                    <span>{rewardTitle(db, r)}</span>
-                    <strong>{formatInt(r.pointsCost)} puntos</strong>
-                  </li>
-                ))}
-              </ul>
-              <MoreLink to="/app/rewards">Ir a recompensas</MoreLink>
-            </Card>
-          )}
         </div>
       </div>
     </div>

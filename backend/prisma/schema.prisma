@@ -375,6 +375,7 @@ model Tier {
   pointsMultiplier Decimal @default(1.00) @db.Decimal(4, 2)
   sortOrder        Int
   isActive         Boolean @default(true)
+  icon             String  @default("medal") @db.VarChar(30)
 
   rewards Reward[]
   badges  Badge[]

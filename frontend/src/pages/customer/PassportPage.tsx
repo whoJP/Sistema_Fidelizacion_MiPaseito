@@ -19,17 +19,17 @@ export function PassportPage() {
 
   return (
     <div className="page">
-      <PageHeader title="Pasaporte del Paseo" subtitle="Tu primera compra en cada establecimiento lo sella en tu pasaporte y te da puntos de nivel extra." />
+      <PageHeader title="Pasaporte" subtitle="Cada local nuevo, un sello" />
 
       <div className="stats-row">
-        <Stat label="Locales descubiertos" value={`${discovered.size} de ${businesses.length}`} />
-        <Stat label="Categorías exploradas" value={exploredCategories.size} />
-        <Stat label="Por descubrir" value={businesses.length - [...discovered].filter((id) => businesses.some((b) => b.id === id)).length} />
+        <Stat label="Sellos" value={`${discovered.size}/${businesses.length}`} />
+        <Stat label="Categorías" value={exploredCategories.size} />
+        <Stat label="Por sellar" value={businesses.length - [...discovered].filter((id) => businesses.some((b) => b.id === id)).length} />
       </div>
 
       {progress.length > 0 && (
         <Card>
-          <h2>Progreso por categoría</h2>
+          <h2>Por categoría</h2>
           <ul className="list">
             {progress.map((p) => (
               <li key={p.category.id} className="mission-mini">
@@ -52,7 +52,7 @@ export function PassportPage() {
           <span className="stamp-seal" aria-hidden>
             <Sparkles size={22} />
           </span>
-          <strong>Bienvenida al Paseo</strong>
+          <strong>Bienvenida</strong>
           <span className="small">{formatDate(user.createdAt)}</span>
         </div>
         {businesses.map((b) => {
@@ -63,7 +63,7 @@ export function PassportPage() {
                 <Stamp size={22} />
               </span>
               <strong>{b.name}</strong>
-              <span className="small">{found ? formatDate(found.discoveredAt) : 'Sin sello'}</span>
+              <span className="small">{found ? formatDate(found.discoveredAt) : 'Por sellar'}</span>
             </Link>
           )
         })}

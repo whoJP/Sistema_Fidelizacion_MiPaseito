@@ -26,7 +26,12 @@ function Invoke-Step([string]$label, [string]$dir, [string]$command) {
   } finally { Pop-Location }
 }
 
-if (Test-Port 3306) {
+$envFile = Join-Path $root 'backend\.env'
+$usesLocalDb = [bool](Get-Content $envFile -ErrorAction SilentlyContinue | Select-String '^DATABASE_URL=.*@(localhost|127\.0\.0\.1)[:/]')
+
+if (-not $usesLocalDb) {
+  Write-Host '==> Usando la base de datos remota de DATABASE_URL' -ForegroundColor Cyan
+} elseif (Test-Port 3306) {
   Write-Host '==> MySQL ya está escuchando en :3306' -ForegroundColor Cyan
 } else {
   $mysqld = Get-ChildItem -Path $mysqlHome -Filter mysqld.exe -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1

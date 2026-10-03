@@ -10,7 +10,7 @@ const HIT_MS = 700
 const PROBLEMS: Record<Exclude<CameraState, 'starting' | 'live'>, { title: string; text: string; retry: boolean }> = {
   insecure: {
     title: 'La cámara necesita una conexión segura',
-    text: 'Abre Paseo Club con una dirección que empiece con https:// para poder escanear. Mientras tanto, usa «Escribir código».',
+    text: 'Abre Paseo Club con una dirección que empiece con https:// para poder escanear. Mientras tanto, puedes escribir el código a mano.',
     retry: false,
   },
   denied: {
@@ -20,7 +20,7 @@ const PROBLEMS: Record<Exclude<CameraState, 'starting' | 'live'>, { title: strin
   },
   missing: {
     title: 'No encontramos una cámara',
-    text: 'Este dispositivo no tiene cámara disponible. Usa «Escribir código».',
+    text: 'Este dispositivo no tiene cámara disponible. Puedes escribir el código a mano.',
     retry: true,
   },
   busy: {
@@ -30,7 +30,7 @@ const PROBLEMS: Record<Exclude<CameraState, 'starting' | 'live'>, { title: strin
   },
   failed: {
     title: 'No se pudo abrir la cámara',
-    text: 'Vuelve a intentar. Si sigue fallando, usa «Escribir código».',
+    text: 'Vuelve a intentar. Si sigue fallando, puedes escribir el código a mano.',
     retry: true,
   },
 }

@@ -34,6 +34,8 @@ backend/src/
   persist.ts     persistDiff(tx, before, after, { newUserPasswordHash }): primary-key diff -> createMany/updateMany/deleteMany
   engine.ts      executeCommand()/transact(): mutex -> snapshot -> run command -> persist -> version++
   demo.ts        resetDemo(): wipe all tables + load buildDemoDatabase() from frontend/src/data/fixtures.ts
+  integration.ts Read-only API for Jarvis Paseo (Reto 2) at /api/integration/v1, header X-API-Key = INTEGRATION_API_KEY
+  openapi.ts     OpenAPI 3.1 contract of that API (served at /api/integration/v1/openapi.json); update it with the routes
 prisma/schema.prisma, prisma/migrations/, prisma/seed.ts
 ```
 

@@ -9,4 +9,5 @@ export const config = {
   jwtSecret: required('JWT_SECRET'),
   port: Number(process.env.PORT ?? 4000),
   allowDemoReset: process.env.ALLOW_DEMO_RESET === 'true',
+  integrationApiKey: process.env.INTEGRATION_API_KEY ?? '',
 }

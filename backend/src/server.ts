@@ -18,6 +18,7 @@ import {
 import { config } from './config.ts'
 import { resetDemo } from './demo.ts'
 import { DomainError, currentSnapshot, executeCommand, expirePendingRedemptions, transact } from './engine.ts'
+import { integrationRouter } from './integration.ts'
 import { prisma } from './prisma.ts'
 import { viewFor } from './snapshot.ts'
 
@@ -152,6 +153,8 @@ app.post('/api/demo/reset', async (_req, res) => {
   await resetDemo()
   res.json({ ok: true })
 })
+
+app.use('/api/integration/v1', integrationRouter)
 
 app.use('/api', (_req, _res, next) => next(new HttpError(404, 'Ruta no encontrada')))
 

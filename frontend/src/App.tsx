@@ -1,3 +1,4 @@
+import { lazy, type ComponentType } from 'react'
 import { Navigate, Outlet, Route, Routes, useParams } from 'react-router-dom'
 import { AppShell } from './layouts/AppShell'
 import { useSession } from './session'
@@ -13,33 +14,40 @@ import { ActivityPage } from './pages/customer/ActivityPage'
 import { BadgesPage } from './pages/customer/BadgesPage'
 import { SpinPage } from './pages/customer/SpinPage'
 import { ScanSpacePage } from './pages/customer/ScanSpacePage'
+import { RankingPage } from './pages/customer/RankingPage'
 import { AccountPage } from './pages/AccountPage'
-import { RegisterPurchasePage } from './pages/merchant/RegisterPurchasePage'
-import { ValidateRedemptionPage } from './pages/merchant/ValidateRedemptionPage'
-import { MerchantTransactionsPage } from './pages/merchant/MerchantTransactionsPage'
-import { CatalogPage } from './pages/merchant/CatalogPage'
-import { MerchantRewardsPage } from './pages/merchant/MerchantRewardsPage'
-import { MerchantUnassigned } from './pages/merchant/MerchantUnassigned'
-import { BirthdayPage } from './pages/merchant/BirthdayPage'
 import type { UserRole } from './types/domain'
-import { AdminDashboard } from './pages/admin/AdminDashboard'
-import { AdminBusinesses } from './pages/admin/AdminBusinesses'
-import { AdminCategories } from './pages/admin/AdminCategories'
-import { AdminTiers } from './pages/admin/AdminTiers'
-import { AdminRewards } from './pages/admin/AdminRewards'
-import { AdminMissions } from './pages/admin/AdminMissions'
-import { AdminPromotions } from './pages/admin/AdminPromotions'
-import { AdminFraud } from './pages/admin/AdminFraud'
-import { AdminUsers } from './pages/admin/AdminUsers'
-import { AdminSettings } from './pages/admin/AdminSettings'
-import { AdminMetrics } from './pages/admin/AdminMetrics'
-import { AdminEvents } from './pages/admin/AdminEvents'
-import { AdminBadges } from './pages/admin/AdminBadges'
-import { AdminAudit } from './pages/admin/AdminAudit'
-import { AdminSpaces } from './pages/admin/AdminSpaces'
-import { AdminSpin } from './pages/admin/AdminSpin'
-import { AdminKyc } from './pages/admin/AdminKyc'
-import { AdminCancellations } from './pages/admin/AdminCancellations'
+
+// Staff screens load on demand, so customers on a phone never download them.
+const merchant = () => import('./pages/merchant')
+const admin = () => import('./pages/admin')
+const page = <M,>(load: () => Promise<M>, pick: (m: M) => ComponentType) => lazy(() => load().then((m) => ({ default: pick(m) })))
+
+const RegisterPurchasePage = page(merchant, (m) => m.RegisterPurchasePage)
+const ValidateRedemptionPage = page(merchant, (m) => m.ValidateRedemptionPage)
+const MerchantTransactionsPage = page(merchant, (m) => m.MerchantTransactionsPage)
+const CatalogPage = page(merchant, (m) => m.CatalogPage)
+const MerchantRewardsPage = page(merchant, (m) => m.MerchantRewardsPage)
+const MerchantUnassigned = page(merchant, (m) => m.MerchantUnassigned)
+const BirthdayPage = page(merchant, (m) => m.BirthdayPage)
+const AdminDashboard = page(admin, (m) => m.AdminDashboard)
+const AdminBusinesses = page(admin, (m) => m.AdminBusinesses)
+const AdminCategories = page(admin, (m) => m.AdminCategories)
+const AdminTiers = page(admin, (m) => m.AdminTiers)
+const AdminRewards = page(admin, (m) => m.AdminRewards)
+const AdminMissions = page(admin, (m) => m.AdminMissions)
+const AdminPromotions = page(admin, (m) => m.AdminPromotions)
+const AdminFraud = page(admin, (m) => m.AdminFraud)
+const AdminUsers = page(admin, (m) => m.AdminUsers)
+const AdminSettings = page(admin, (m) => m.AdminSettings)
+const AdminMetrics = page(admin, (m) => m.AdminMetrics)
+const AdminEvents = page(admin, (m) => m.AdminEvents)
+const AdminBadges = page(admin, (m) => m.AdminBadges)
+const AdminAudit = page(admin, (m) => m.AdminAudit)
+const AdminSpaces = page(admin, (m) => m.AdminSpaces)
+const AdminSpin = page(admin, (m) => m.AdminSpin)
+const AdminKyc = page(admin, (m) => m.AdminKyc)
+const AdminCancellations = page(admin, (m) => m.AdminCancellations)
 
 function homeFor(session: ReturnType<typeof useSession>) {
   if (session.loading) return '/app'
@@ -99,6 +107,7 @@ export default function App() {
             <Route path="/app/badges" element={<BadgesPage />} />
             <Route path="/app/spin" element={<SpinPage />} />
             <Route path="/app/scan" element={<ScanSpacePage />} />
+            <Route path="/app/ranking" element={<RankingPage />} />
             <Route path="/app/profile" element={<Navigate to="/account" replace />} />
           </Route>
 

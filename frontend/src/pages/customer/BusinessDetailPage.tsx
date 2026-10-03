@@ -2,15 +2,15 @@ import { Link, useParams } from 'react-router-dom'
 import { ArrowLeft, Clock, MapPin, Megaphone, Phone } from 'lucide-react'
 import { useDb } from '../../data/store'
 import { businessCategoryIds, discoveredBusinessIds, promotionsForBusiness, rewardTitle, visibleRewards } from '../../domain/loyalty'
-import { DAY_LABELS, DAYS_IN_ORDER, formatInt, formatMoney } from '../../lib/format'
+import { DAY_LABELS, DAYS_IN_ORDER, businessLocation, formatInt, formatMoney } from '../../lib/format'
+import { useNow } from '../../lib/useNow'
 import { useUser } from '../../session'
 import { Badge, Card, CardHead, Empty, MoreLink, PageHeader } from '../../components/ui'
-import { businessLocation } from './DirectoryPage'
-
 export function BusinessDetailPage() {
   const db = useDb()
   const user = useUser()
   const { businessId } = useParams()
+  const now = useNow(60_000)
   const business = db.businesses.find((b) => b.id === Number(businessId) && b.deletedAt === null && b.status === 'ACTIVE')
 
   if (!business) {
@@ -28,7 +28,7 @@ export function BusinessDetailPage() {
     .filter((c) => c !== undefined)
   const promos = promotionsForBusiness(db, business.id)
   const rewards = visibleRewards(db).filter((r) => r.businessId === business.id)
-  const today = DAYS_IN_ORDER[(new Date().getDay() + 6) % 7]
+  const today = DAYS_IN_ORDER[(new Date(now).getDay() + 6) % 7]
 
   return (
     <div className="page">

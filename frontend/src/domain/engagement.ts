@@ -34,6 +34,29 @@ export function tierGap(db: Database, userId: number): TierGap | null {
   return { tierName: next.name, missingStatus, missingBs: rate > 0 ? Math.ceil(missingStatus / rate) : null }
 }
 
+// ---------- Ranking ----------
+
+export interface RankingRow {
+  user: User
+  /** Ties share a position (1, 2, 2, 4). */
+  position: number
+  status: number
+}
+
+/** Active customers by puntos de nivel earned in the last `days` days, best first. Redeeming never lowers them. */
+export function statusRanking(db: Database, now = new Date(), days = 30): RankingRow[] {
+  const since = now.getTime() - days * 24 * 3600_000
+  const earned = new Map<number, number>()
+  for (const m of db.statusMovements) {
+    if (Date.parse(m.createdAt) >= since) earned.set(m.userId, (earned.get(m.userId) ?? 0) + m.amount)
+  }
+  const rows = db.users
+    .filter((u) => u.role === 'CUSTOMER' && u.status === 'ACTIVE' && isLive(u) && (earned.get(u.id) ?? 0) > 0)
+    .map((user) => ({ user, status: earned.get(user.id) ?? 0 }))
+    .sort((a, b) => b.status - a.status || a.user.id - b.user.id)
+  return rows.map((row) => ({ ...row, position: rows.findIndex((r) => r.status === row.status) + 1 }))
+}
+
 // ---------- Visits ----------
 
 /** Bolivian days the customer came to the Paseo: a completed purchase or a space check-in. Oldest first. */

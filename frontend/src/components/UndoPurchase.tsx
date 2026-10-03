@@ -1,10 +1,11 @@
 import { useState, type MouseEvent, type ReactNode } from 'react'
 import { Undo2 } from 'lucide-react'
 import { PURCHASE_UNDO_MS, undoDeadline } from '../data/actions'
-import { formatMoney } from '../lib/format'
+import { formatCountdown, formatMoney } from '../lib/format'
+import { useNow } from '../lib/useNow'
 import type { Transaction } from '../types/domain'
 import { confirmDialog } from './dialog'
-import { TimeBar, flash, formatCountdown, rowOf, run, useNow } from './ui'
+import { TimeBar, flash, rowOf, run } from './ui'
 
 /** "Deshacer registro" with a bar that empties during the undo window; shows `after` once the window closes. */
 export function UndoPurchase({ tx, after = null }: { tx: Transaction; after?: ReactNode }) {

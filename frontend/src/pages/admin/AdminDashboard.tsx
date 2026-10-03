@@ -4,11 +4,12 @@ import { useDb } from '../../data/store'
 import { activeTiers, statusTotal, tierForStatus } from '../../domain/loyalty'
 import { formatInt, formatMoney, fullName, plural } from '../../lib/format'
 import { Card, PageHeader, Progress, Stat } from '../../components/ui'
+import { useNow } from '../../lib/useNow'
 
 /** Every figure here is computed on the fly; analytics are never stored. */
 export function AdminDashboard() {
   const db = useDb()
-  const since = Date.now() - 30 * 24 * 3600_000
+  const since = useNow(60_000) - 30 * 24 * 3600_000
   const customers = db.users.filter((u) => u.role === 'CUSTOMER' && u.deletedAt === null)
   const recent = db.transactions.filter((t) => t.status === 'COMPLETED' && new Date(t.createdAt).getTime() >= since)
   const issued = db.pointMovements.filter((m) => m.amount > 0 && m.type !== 'REVERSAL').reduce((s, m) => s + m.amount, 0)

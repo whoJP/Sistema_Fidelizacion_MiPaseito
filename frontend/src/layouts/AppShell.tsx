@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { Suspense, useEffect, useRef, useState } from 'react'
 import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
 import {
   AlertTriangle,
@@ -30,6 +30,7 @@ import {
   Settings,
   ShieldCheck,
   Target,
+  Trophy,
   UserRound,
   Users,
   X,
@@ -62,6 +63,7 @@ const CUSTOMER_NAV: NavItem[] = [
   { to: '/app/rewards', label: 'Recompensas', short: 'Premios', icon: Gift, primary: true },
   { to: '/app/missions', label: 'Misiones', icon: Target, primary: true },
   { to: '/app/passport', label: 'Pasaporte', icon: MapIcon, primary: true },
+  { to: '/app/ranking', label: 'Ranking', icon: Trophy },
   { to: '/app/spin', label: 'Ruleta', icon: Disc3 },
   { to: '/app/scan', label: 'Visitar un espacio', short: 'Espacios', icon: ScanLine },
   { to: '/app/directory', label: 'Directorio', icon: Compass },
@@ -215,7 +217,15 @@ export function AppShell() {
             <span className="staff-role">{roleLabel}</span>
           </div>
         )}
-        <Outlet />
+        <Suspense
+          fallback={
+            <p className="page muted" role="status">
+              Cargando…
+            </p>
+          }
+        >
+          <Outlet />
+        </Suspense>
       </main>
 
       {tabs.length > 0 && <TabBar tabs={tabs} more={more} />}

@@ -1,6 +1,7 @@
 import { startLocked, windowError, type Window } from '../domain/schedule'
 import { fromLocalInput, toLocalInput } from '../lib/format'
-import { Field, useNow } from './ui'
+import { useNow } from '../lib/useNow'
+import { Field } from './ui'
 
 export interface WindowDraft {
   startsAt: string

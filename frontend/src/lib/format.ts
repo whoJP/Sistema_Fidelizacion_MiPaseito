@@ -1,5 +1,6 @@
 import type {
   BadgeType,
+  Business,
   BusinessMemberRole,
   DayOfWeek,
   FraudAlertType,
@@ -59,8 +60,14 @@ const longDayFmt = new Intl.DateTimeFormat('es-BO', { day: 'numeric', month: 'lo
 export const formatLongDayKey = (key: string) => longDayFmt.format(new Date(`${key}T12:00:00`))
 export const plural = (count: number, one: string, many: string) => `${formatInt(count)} ${count === 1 ? one : many}`
 export const signed = (value: number) => (value > 0 ? `+${formatInt(value)}` : formatInt(value))
+export const formatCountdown = (ms: number) => {
+  const total = Math.max(0, Math.ceil(ms / 1000))
+  return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`
+}
 
 export const floorLabel = (floor: string) => (floor.toUpperCase() === 'PB' ? 'Planta baja' : `Piso ${floor}`)
+export const businessLocation = (b: Business) =>
+  [b.floor && floorLabel(b.floor), b.sector, b.localNumber && `Local ${b.localNumber}`].filter(Boolean).join(', ')
 
 export const fullName = (u: { firstName: string; lastName: string }) => `${u.firstName} ${u.lastName}`
 

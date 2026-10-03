@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { MapPin, Megaphone, Search, Stamp } from 'lucide-react'
 import { useDb } from '../../data/store'
@@ -11,12 +11,7 @@ import {
 } from '../../domain/loyalty'
 import { useUser } from '../../session'
 import { Badge, Card, Empty, PageHeader } from '../../components/ui'
-import { floorLabel } from '../../lib/format'
-import type { Business } from '../../types/domain'
-
-export function businessLocation(b: Business) {
-  return [b.floor && floorLabel(b.floor), b.sector, b.localNumber && `Local ${b.localNumber}`].filter(Boolean).join(', ')
-}
+import { businessLocation } from '../../lib/format'
 
 export function DirectoryPage() {
   const db = useDb()
@@ -26,14 +21,12 @@ export function DirectoryPage() {
   const discovered = discoveredBusinessIds(db, user.id)
   const roots = rootCategories(db).filter((c) => c.status === 'ACTIVE')
 
-  const businesses = useMemo(() => {
-    const q = query.trim().toLowerCase()
-    return db.businesses
-      .filter((b) => b.deletedAt === null && b.status === 'ACTIVE')
-      .filter((b) => !categoryId || businessCategoryClosure(db, b.id).has(categoryId))
-      .filter((b) => !q || b.name.toLowerCase().includes(q) || b.description.toLowerCase().includes(q))
-      .sort((a, b) => a.name.localeCompare(b.name))
-  }, [db, query, categoryId])
+  const q = query.trim().toLowerCase()
+  const businesses = db.businesses
+    .filter((b) => b.deletedAt === null && b.status === 'ACTIVE')
+    .filter((b) => !categoryId || businessCategoryClosure(db, b.id).has(categoryId))
+    .filter((b) => !q || b.name.toLowerCase().includes(q) || b.description.toLowerCase().includes(q))
+    .sort((a, b) => a.name.localeCompare(b.name))
 
   return (
     <div className="page">

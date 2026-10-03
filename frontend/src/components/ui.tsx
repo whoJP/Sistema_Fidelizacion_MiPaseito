@@ -262,21 +262,6 @@ export function Field({ label, children, hint, error }: { label: string; childre
   )
 }
 
-/** Current time in ms, refreshed every `intervalMs` (for countdowns). */
-export function useNow(intervalMs = 1000): number {
-  const [now, setNow] = useState(() => Date.now())
-  useEffect(() => {
-    const timer = setInterval(() => setNow(Date.now()), intervalMs)
-    return () => clearInterval(timer)
-  }, [intervalMs])
-  return now
-}
-
-export const formatCountdown = (ms: number) => {
-  const total = Math.max(0, Math.ceil(ms / 1000))
-  return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`
-}
-
 /** Bar that empties with the time left until `end`; it moves on every `now` tick. */
 export function TimeBar({ start, end, now }: { start: number; end: number; now: number }) {
   const ratio = Math.min(1, Math.max(0, (end - now) / Math.max(1, end - start)))

@@ -1100,6 +1100,46 @@ textarea {
   font-size: 1.3rem;
   color: var(--gold-light);
 }
+/* ---------- Ranking ---------- */
+.rank-row {
+  justify-content: flex-start;
+}
+.rank-row.is-me {
+  margin: 0 -0.75rem;
+  padding-inline: 0.75rem;
+  border-radius: var(--radius-xs);
+  background: rgb(245 200 76 / 0.08);
+}
+.rank-pos {
+  flex: none;
+  width: 2rem;
+  font-family: var(--font-figures);
+  font-size: 1.15rem;
+  color: var(--muted);
+  text-align: center;
+}
+.rank-pos.is-podium {
+  color: var(--gold);
+}
+.rank-who {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+.rank-points {
+  font-family: var(--font-figures);
+  font-size: 1.1rem;
+  color: var(--gold-light);
+}
+.rank-gap {
+  padding: 0.25rem 0;
+  color: var(--subtle);
+  text-align: center;
+  letter-spacing: 0.3em;
+}
 /* ---------- Misiones ---------- */
 .missions-grid {
   display: grid;

@@ -12,13 +12,12 @@ import {
   rewardTitle,
   visibleRewards,
 } from '../../domain/loyalty'
-import { formatDateTime, formatInt } from '../../lib/format'
+import { businessLocation, formatCountdown, formatDateTime, formatInt } from '../../lib/format'
+import { useNow } from '../../lib/useNow'
 import { useUser } from '../../session'
 import type { Redemption, Reward } from '../../types/domain'
-import { Badge, Card, Empty, Modal, PageHeader, TimeBar, flash, formatCountdown, rowOf, run, useNow } from '../../components/ui'
+import { Badge, Card, Empty, Modal, PageHeader, TimeBar, flash, rowOf, run } from '../../components/ui'
 import { confirmDialog } from '../../components/dialog'
-import { businessLocation } from './DirectoryPage'
-
 const STATUS_LABEL: Record<Redemption['status'], [string, 'accent' | 'success' | 'neutral' | 'danger']> = {
   PENDING: ['Pendiente', 'accent'],
   REDEEMED: ['Canjeado', 'success'],

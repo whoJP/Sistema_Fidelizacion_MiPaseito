@@ -8,6 +8,7 @@ import type { EventStatus, PaseoEvent } from '../../types/domain'
 import { Badge, Card, Empty, Field, Modal, notify, run, vanish } from '../../components/ui'
 import { confirmDialog } from '../../components/dialog'
 import { LIMITS, MAX_REWARD_POINTS } from '../../domain/validation'
+import { useNow } from '../../lib/useNow'
 import { ScanOrCode } from '../../components/ScanOrCode'
 import { WindowFields, draftWindowError } from '../../components/WindowFields'
 import { AdminHeader, FormActions } from './shared'
@@ -124,7 +125,7 @@ export function AdminEvents() {
   const db = useDb()
   const [draft, setDraft] = useState<Draft | null>(null)
   const [checkIn, setCheckIn] = useState<PaseoEvent | null>(null)
-  const now = new Date()
+  const now = new Date(useNow(30_000))
   const events = db.events.filter((e) => e.deletedAt === null).sort((a, b) => b.startsAt.localeCompare(a.startsAt))
   const editing = (draft?.id && db.events.find((e) => e.id === draft.id)) || null
   const windowProblem = draft && draftWindowError(draft, editing, true)

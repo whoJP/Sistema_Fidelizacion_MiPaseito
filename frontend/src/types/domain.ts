@@ -1,0 +1,350 @@
+// Mirror of backend/prisma/schema.prisma. Dates are ISO strings, Decimals are numbers.
+
+export type UserRole = 'CUSTOMER' | 'ADMIN'
+export type UserStatus = 'ACTIVE' | 'SUSPENDED'
+export type BusinessStatus = 'ACTIVE' | 'INACTIVE'
+export type DayOfWeek =
+  | 'MONDAY'
+  | 'TUESDAY'
+  | 'WEDNESDAY'
+  | 'THURSDAY'
+  | 'FRIDAY'
+  | 'SATURDAY'
+  | 'SUNDAY'
+export type BusinessMemberRole = 'STAFF' | 'MANAGER'
+export type BusinessMemberStatus = 'ACTIVE' | 'INACTIVE'
+export type CategoryStatus = 'ACTIVE' | 'INACTIVE'
+export type TransactionStatus = 'COMPLETED' | 'CANCELLED' | 'FLAGGED'
+export type PointMovementType =
+  | 'PURCHASE'
+  | 'MISSION'
+  | 'PROMOTION'
+  | 'EVENT'
+  | 'REDEMPTION'
+  | 'ADJUSTMENT'
+  | 'REVERSAL'
+export type StatusMovementType = 'PURCHASE' | 'MISSION' | 'DISCOVERY' | 'STREAK' | 'ADJUSTMENT'
+export type RewardType = 'PERCENT_DISCOUNT' | 'AMOUNT_DISCOUNT' | 'FREE_PRODUCT'
+export type RewardStatus = 'DRAFT' | 'ACTIVE' | 'INACTIVE'
+export type RedemptionStatus = 'PENDING' | 'REDEEMED' | 'EXPIRED' | 'CANCELLED'
+export type MissionType =
+  | 'BUY_DISTINCT_BUSINESSES'
+  | 'BUY_CATEGORY'
+  | 'BUY_DISTINCT_CATEGORIES'
+  | 'TOTAL_PURCHASE_AMOUNT'
+  | 'TRANSACTION_COUNT'
+  | 'WEEKLY_PURCHASE'
+  | 'DISCOVER_BUSINESS'
+export type MissionStatus = 'DRAFT' | 'ACTIVE' | 'INACTIVE'
+export type PromotionType = 'POINTS_MULTIPLIER' | 'FIXED_POINTS'
+export type PromotionStatus = 'DRAFT' | 'ACTIVE' | 'INACTIVE'
+export type EventStatus = 'DRAFT' | 'ACTIVE' | 'INACTIVE'
+export type BadgeType =
+  | 'TIER_REACHED'
+  | 'PURCHASE_COUNT'
+  | 'CATEGORY_PURCHASES'
+  | 'DISTINCT_BUSINESSES'
+  | 'MISSIONS_COMPLETED'
+  | 'SPECIAL_DATE'
+export type BadgeStatus = 'ACTIVE' | 'INACTIVE'
+export type FraudAlertType =
+  | 'DUPLICATE_TRANSACTION'
+  | 'REUSED_REDEMPTION'
+  | 'HIGH_FREQUENCY'
+  | 'ABNORMAL_AMOUNT'
+export type FraudAlertStatus = 'OPEN' | 'RESOLVED' | 'DISMISSED'
+
+export interface User {
+  id: number
+  email: string
+  firstName: string
+  lastName: string
+  phone: string | null
+  birthDate: string | null
+  role: UserRole
+  status: UserStatus
+  createdAt: string
+  updatedAt: string
+  deletedAt: string | null
+}
+
+export interface Business {
+  id: number
+  name: string
+  description: string
+  logoUrl: string | null
+  phone: string | null
+  floor: string | null
+  sector: string | null
+  localNumber: string | null
+  status: BusinessStatus
+  createdAt: string
+  updatedAt: string
+  deletedAt: string | null
+}
+
+export interface BusinessSchedule {
+  id: number
+  businessId: number
+  dayOfWeek: DayOfWeek
+  openTime: string | null
+  closeTime: string | null
+  isClosed: boolean
+}
+
+export interface BusinessMember {
+  id: number
+  userId: number
+  businessId: number
+  role: BusinessMemberRole
+  status: BusinessMemberStatus
+}
+
+export interface Category {
+  id: number
+  name: string
+  parentId: number | null
+  status: CategoryStatus
+  deletedAt: string | null
+}
+
+export interface BusinessCategory {
+  businessId: number
+  categoryId: number
+}
+
+export interface CatalogItem {
+  id: number
+  businessId: number
+  name: string
+  description: string | null
+  price: number | null
+  isAvailable: boolean
+  deletedAt: string | null
+}
+
+export interface Tier {
+  id: number
+  name: string
+  minimumStatus: number
+  pointsMultiplier: number
+  sortOrder: number
+  isActive: boolean
+}
+
+export interface Transaction {
+  id: number
+  customerId: number
+  businessId: number
+  performedById: number
+  amount: number
+  status: TransactionStatus
+  createdAt: string
+}
+
+export interface PointMovement {
+  id: number
+  userId: number
+  transactionId: number | null
+  redemptionId: number | null
+  missionId: number | null
+  promotionId: number | null
+  eventId: number | null
+  type: PointMovementType
+  amount: number
+  createdAt: string
+}
+
+export interface StatusMovement {
+  id: number
+  userId: number
+  transactionId: number | null
+  missionId: number | null
+  type: StatusMovementType
+  amount: number
+  createdAt: string
+}
+
+export interface Reward {
+  id: number
+  businessId: number
+  type: RewardType
+  discountPercent: number | null
+  discountAmount: number | null
+  catalogItemId: number | null
+  quantity: number
+  minimumPurchase: number | null
+  description: string | null
+  pointsCost: number
+  minimumTierId: number | null
+  stock: number | null
+  startsAt: string | null
+  endsAt: string | null
+  status: RewardStatus
+  createdById: number
+  deletedAt: string | null
+}
+
+export interface Redemption {
+  id: number
+  userId: number
+  rewardId: number
+  businessId: number | null
+  validatedById: number | null
+  pointsSpent: number
+  verificationToken: string
+  status: RedemptionStatus
+  createdAt: string
+  redeemedAt: string | null
+}
+
+export interface Mission {
+  id: number
+  name: string
+  description: string | null
+  type: MissionType
+  goal: number
+  rewardPoints: number
+  rewardStatus: number
+  startsAt: string
+  endsAt: string
+  status: MissionStatus
+  createdById: number
+  deletedAt: string | null
+}
+
+export interface MissionBusiness {
+  missionId: number
+  businessId: number
+}
+
+export interface MissionCategory {
+  missionId: number
+  categoryId: number
+}
+
+export interface MissionProgress {
+  missionId: number
+  userId: number
+  progress: number
+  completedAt: string | null
+}
+
+export interface BusinessDiscovery {
+  userId: number
+  businessId: number
+  discoveredAt: string
+}
+
+export interface Promotion {
+  id: number
+  name: string
+  type: PromotionType
+  value: number
+  startsAt: string
+  endsAt: string
+  status: PromotionStatus
+  createdById: number
+  deletedAt: string | null
+}
+
+export interface PromotionBusiness {
+  promotionId: number
+  businessId: number
+}
+
+export interface PromotionCategory {
+  promotionId: number
+  categoryId: number
+}
+
+/** Prisma model `Event` (renamed here to avoid shadowing the DOM `Event`). */
+export interface PaseoEvent {
+  id: number
+  name: string
+  description: string | null
+  location: string | null
+  startsAt: string
+  endsAt: string
+  pointsReward: number
+  status: EventStatus
+  createdById: number
+  deletedAt: string | null
+}
+
+export interface EventAttendance {
+  eventId: number
+  userId: number
+  checkedInById: number
+  checkedInAt: string
+}
+
+export interface Badge {
+  id: number
+  name: string
+  description: string | null
+  type: BadgeType
+  goal: number | null
+  tierId: number | null
+  categoryId: number | null
+  /** `YYYY-MM-DD`, only for SPECIAL_DATE. */
+  date: string | null
+  status: BadgeStatus
+  createdById: number
+  deletedAt: string | null
+}
+
+export interface FraudAlert {
+  id: number
+  transactionId: number | null
+  redemptionId: number | null
+  type: FraudAlertType
+  riskScore: number
+  status: FraudAlertStatus
+  createdAt: string
+}
+
+export interface AuditLog {
+  id: number
+  userId: number
+  action: string
+  entityType: string
+  entityId: number
+  createdAt: string
+}
+
+export interface SystemSetting {
+  key: string
+  value: string
+  updatedAt: string
+}
+
+export interface Database {
+  users: User[]
+  businesses: Business[]
+  businessSchedules: BusinessSchedule[]
+  businessMembers: BusinessMember[]
+  categories: Category[]
+  businessCategories: BusinessCategory[]
+  catalogItems: CatalogItem[]
+  tiers: Tier[]
+  transactions: Transaction[]
+  pointMovements: PointMovement[]
+  statusMovements: StatusMovement[]
+  rewards: Reward[]
+  redemptions: Redemption[]
+  missions: Mission[]
+  missionBusinesses: MissionBusiness[]
+  missionCategories: MissionCategory[]
+  missionProgress: MissionProgress[]
+  businessDiscoveries: BusinessDiscovery[]
+  promotions: Promotion[]
+  promotionBusinesses: PromotionBusiness[]
+  promotionCategories: PromotionCategory[]
+  events: PaseoEvent[]
+  eventAttendances: EventAttendance[]
+  badges: Badge[]
+  fraudAlerts: FraudAlert[]
+  auditLogs: AuditLog[]
+  systemSettings: SystemSetting[]
+}

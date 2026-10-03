@@ -1,0 +1,665 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// ==================================================
+// ENUMS
+// ==================================================
+
+enum UserRole {
+  CUSTOMER
+  ADMIN
+}
+
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+}
+
+enum BusinessStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum DayOfWeek {
+  MONDAY
+  TUESDAY
+  WEDNESDAY
+  THURSDAY
+  FRIDAY
+  SATURDAY
+  SUNDAY
+}
+
+enum BusinessMemberRole {
+  STAFF
+  MANAGER
+}
+
+enum BusinessMemberStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum CategoryStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum TransactionStatus {
+  COMPLETED
+  CANCELLED
+  FLAGGED
+}
+
+enum PointMovementType {
+  PURCHASE
+  MISSION
+  PROMOTION
+  EVENT
+  REDEMPTION
+  ADJUSTMENT
+  REVERSAL
+}
+
+enum StatusMovementType {
+  PURCHASE
+  MISSION
+  DISCOVERY
+  STREAK
+  ADJUSTMENT
+}
+
+enum RewardType {
+  PERCENT_DISCOUNT
+  AMOUNT_DISCOUNT
+  FREE_PRODUCT
+}
+
+enum RewardStatus {
+  DRAFT
+  ACTIVE
+  INACTIVE
+}
+
+enum RedemptionStatus {
+  PENDING
+  REDEEMED
+  EXPIRED
+  CANCELLED
+}
+
+enum MissionType {
+  BUY_DISTINCT_BUSINESSES
+  BUY_CATEGORY
+  BUY_DISTINCT_CATEGORIES
+  TOTAL_PURCHASE_AMOUNT
+  TRANSACTION_COUNT
+  WEEKLY_PURCHASE
+  DISCOVER_BUSINESS
+}
+
+enum MissionStatus {
+  DRAFT
+  ACTIVE
+  INACTIVE
+}
+
+enum PromotionType {
+  POINTS_MULTIPLIER
+  FIXED_POINTS
+}
+
+enum PromotionStatus {
+  DRAFT
+  ACTIVE
+  INACTIVE
+}
+
+enum EventStatus {
+  DRAFT
+  ACTIVE
+  INACTIVE
+}
+
+enum BadgeType {
+  TIER_REACHED
+  PURCHASE_COUNT
+  CATEGORY_PURCHASES
+  DISTINCT_BUSINESSES
+  MISSIONS_COMPLETED
+  SPECIAL_DATE
+}
+
+enum BadgeStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum FraudAlertType {
+  DUPLICATE_TRANSACTION
+  REUSED_REDEMPTION
+  HIGH_FREQUENCY
+  ABNORMAL_AMOUNT
+}
+
+enum FraudAlertStatus {
+  OPEN
+  RESOLVED
+  DISMISSED
+}
+
+// ==================================================
+// USERS & BUSINESSES
+// ==================================================
+
+model User {
+  id           Int        @id @default(autoincrement())
+  email        String     @unique @db.VarChar(191)
+  passwordHash String     @db.VarChar(255)
+  firstName    String     @db.VarChar(100)
+  lastName     String     @db.VarChar(100)
+  phone        String?    @db.VarChar(30)
+  birthDate    DateTime?  @db.Date
+  role         UserRole   @default(CUSTOMER)
+  status       UserStatus @default(ACTIVE)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  deletedAt    DateTime?
+
+  memberships          BusinessMember[]
+  purchases            Transaction[]       @relation("TransactionCustomer")
+  registeredPurchases  Transaction[]       @relation("TransactionPerformedBy")
+  pointMovements       PointMovement[]
+  statusMovements      StatusMovement[]
+  redemptions          Redemption[]        @relation("RedemptionUser")
+  validatedRedemptions Redemption[]        @relation("RedemptionValidatedBy")
+  createdRewards       Reward[]
+  createdMissions      Mission[]
+  createdPromotions    Promotion[]
+  createdEvents        Event[]
+  createdBadges        Badge[]
+  missionProgress      MissionProgress[]
+  discoveries          BusinessDiscovery[]
+  eventAttendances     EventAttendance[]   @relation("AttendanceUser")
+  checkedInAttendances EventAttendance[]   @relation("AttendanceCheckedInBy")
+  auditLogs            AuditLog[]
+}
+
+model Business {
+  id          Int            @id @default(autoincrement())
+  name        String         @db.VarChar(150)
+  description String         @db.Text
+  logoUrl     String?        @db.VarChar(500)
+  phone       String?        @db.VarChar(30)
+  floor       String?        @db.VarChar(20)
+  sector      String?        @db.VarChar(50)
+  localNumber String?        @db.VarChar(20)
+  status      BusinessStatus @default(ACTIVE)
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+  deletedAt   DateTime?
+
+  schedules    BusinessSchedule[]
+  members      BusinessMember[]
+  categories   BusinessCategory[]
+  catalogItems CatalogItem[]
+  transactions Transaction[]
+  redemptions  Redemption[]
+  rewards      Reward[]
+  missions     MissionBusiness[]
+  promotions   PromotionBusiness[]
+  discoveries  BusinessDiscovery[]
+}
+
+model BusinessSchedule {
+  id         Int       @id @default(autoincrement())
+  businessId Int
+  dayOfWeek  DayOfWeek
+  openTime   DateTime? @db.Time(0)
+  closeTime  DateTime? @db.Time(0)
+  isClosed   Boolean   @default(false)
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@unique([businessId, dayOfWeek])
+}
+
+model BusinessMember {
+  id         Int                  @id @default(autoincrement())
+  userId     Int
+  businessId Int
+  role       BusinessMemberRole
+  status     BusinessMemberStatus @default(ACTIVE)
+
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, businessId])
+  @@index([businessId])
+}
+
+// ==================================================
+// CATEGORIES & CATALOG
+// ==================================================
+
+model Category {
+  id        Int            @id @default(autoincrement())
+  name      String         @db.VarChar(100)
+  parentId  Int?
+  status    CategoryStatus @default(ACTIVE)
+  deletedAt DateTime?
+
+  parent     Category?           @relation("CategoryTree", fields: [parentId], references: [id], onDelete: Restrict)
+  children   Category[]          @relation("CategoryTree")
+  businesses BusinessCategory[]
+  missions   MissionCategory[]
+  promotions PromotionCategory[]
+  badges     Badge[]
+
+  @@index([parentId])
+}
+
+model BusinessCategory {
+  businessId Int
+  categoryId Int
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  category Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@id([businessId, categoryId])
+  @@index([categoryId])
+}
+
+model CatalogItem {
+  id          Int       @id @default(autoincrement())
+  businessId  Int
+  name        String    @db.VarChar(150)
+  description String?   @db.Text
+  price       Decimal?  @db.Decimal(10, 2)
+  isAvailable Boolean   @default(true)
+  deletedAt   DateTime?
+
+  business Business @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  rewards  Reward[]
+
+  @@index([businessId])
+}
+
+// ==================================================
+// LOYALTY: TIERS, TRANSACTIONS, LEDGERS
+// ==================================================
+
+model Tier {
+  id               Int     @id @default(autoincrement())
+  name             String  @unique @db.VarChar(50)
+  minimumStatus    Int     @unique
+  pointsMultiplier Decimal @default(1.00) @db.Decimal(4, 2)
+  sortOrder        Int
+  isActive         Boolean @default(true)
+
+  rewards Reward[]
+  badges  Badge[]
+}
+
+model Transaction {
+  id            Int               @id @default(autoincrement())
+  customerId    Int
+  businessId    Int
+  performedById Int
+  amount        Decimal           @db.Decimal(10, 2)
+  status        TransactionStatus @default(COMPLETED)
+  createdAt     DateTime          @default(now())
+
+  customer    User     @relation("TransactionCustomer", fields: [customerId], references: [id], onDelete: Restrict)
+  business    Business @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  performedBy User     @relation("TransactionPerformedBy", fields: [performedById], references: [id], onDelete: Restrict)
+
+  pointMovements  PointMovement[]
+  statusMovements StatusMovement[]
+  fraudAlerts     FraudAlert[]
+
+  @@index([customerId])
+  @@index([businessId])
+  @@index([performedById])
+  @@index([createdAt])
+}
+
+model PointMovement {
+  id            Int               @id @default(autoincrement())
+  userId        Int
+  transactionId Int?
+  redemptionId  Int?
+  missionId     Int?
+  promotionId   Int?
+  eventId       Int?
+  type          PointMovementType
+  amount        Int
+  createdAt     DateTime          @default(now())
+
+  user        User         @relation(fields: [userId], references: [id], onDelete: Restrict)
+  transaction Transaction? @relation(fields: [transactionId], references: [id], onDelete: Restrict)
+  redemption  Redemption?  @relation(fields: [redemptionId], references: [id], onDelete: Restrict)
+  mission     Mission?     @relation(fields: [missionId], references: [id], onDelete: Restrict)
+  promotion   Promotion?   @relation(fields: [promotionId], references: [id], onDelete: Restrict)
+  event       Event?       @relation(fields: [eventId], references: [id], onDelete: Restrict)
+
+  @@index([userId])
+  @@index([createdAt])
+  @@index([transactionId])
+  @@index([redemptionId])
+  @@index([missionId])
+  @@index([promotionId])
+  @@index([eventId])
+}
+
+model StatusMovement {
+  id            Int                @id @default(autoincrement())
+  userId        Int
+  transactionId Int?
+  missionId     Int?
+  type          StatusMovementType
+  amount        Int
+  createdAt     DateTime           @default(now())
+
+  user        User         @relation(fields: [userId], references: [id], onDelete: Restrict)
+  transaction Transaction? @relation(fields: [transactionId], references: [id], onDelete: Restrict)
+  mission     Mission?     @relation(fields: [missionId], references: [id], onDelete: Restrict)
+
+  @@index([userId])
+  @@index([transactionId])
+  @@index([missionId])
+}
+
+// ==================================================
+// REWARDS & REDEMPTIONS
+// ==================================================
+
+/// A reward always belongs to one business, which creates and manages it. Its title is derived from the structured fields.
+model Reward {
+  id              Int          @id @default(autoincrement())
+  businessId      Int
+  type            RewardType
+  discountPercent Int?
+  discountAmount  Decimal?     @db.Decimal(10, 2)
+  catalogItemId   Int?
+  quantity        Int          @default(1)
+  minimumPurchase Decimal?     @db.Decimal(10, 2)
+  description     String?      @db.Text
+  pointsCost      Int
+  minimumTierId   Int?
+  stock           Int?
+  startsAt        DateTime?
+  endsAt          DateTime?
+  status          RewardStatus @default(DRAFT)
+  createdById     Int
+  deletedAt       DateTime?
+
+  business    Business     @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  catalogItem CatalogItem? @relation(fields: [catalogItemId], references: [id], onDelete: Restrict)
+  minimumTier Tier?        @relation(fields: [minimumTierId], references: [id], onDelete: Restrict)
+  createdBy   User         @relation(fields: [createdById], references: [id], onDelete: Restrict)
+
+  redemptions Redemption[]
+
+  @@index([businessId])
+  @@index([catalogItemId])
+  @@index([minimumTierId])
+  @@index([createdById])
+}
+
+model Redemption {
+  id                Int              @id @default(autoincrement())
+  userId            Int
+  rewardId          Int
+  businessId        Int?
+  validatedById     Int?
+  pointsSpent       Int
+  verificationToken String           @unique @db.VarChar(191)
+  status            RedemptionStatus @default(PENDING)
+  createdAt         DateTime         @default(now())
+  redeemedAt        DateTime?
+
+  user        User      @relation("RedemptionUser", fields: [userId], references: [id], onDelete: Restrict)
+  reward      Reward    @relation(fields: [rewardId], references: [id], onDelete: Restrict)
+  business    Business? @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  validatedBy User?     @relation("RedemptionValidatedBy", fields: [validatedById], references: [id], onDelete: Restrict)
+
+  pointMovements PointMovement[]
+  fraudAlerts    FraudAlert[]
+
+  @@index([userId])
+  @@index([rewardId])
+  @@index([businessId])
+  @@index([validatedById])
+}
+
+// ==================================================
+// MISSIONS & PASSPORT
+// ==================================================
+
+model Mission {
+  id           Int           @id @default(autoincrement())
+  name         String        @db.VarChar(150)
+  description  String?       @db.Text
+  type         MissionType
+  goal         Int
+  rewardPoints Int
+  rewardStatus Int
+  startsAt     DateTime
+  endsAt       DateTime
+  status       MissionStatus @default(DRAFT)
+  createdById  Int
+  deletedAt    DateTime?
+
+  createdBy User @relation(fields: [createdById], references: [id], onDelete: Restrict)
+
+  businesses      MissionBusiness[]
+  categories      MissionCategory[]
+  progress        MissionProgress[]
+  pointMovements  PointMovement[]
+  statusMovements StatusMovement[]
+
+  @@index([createdById])
+}
+
+model MissionBusiness {
+  missionId  Int
+  businessId Int
+
+  mission  Mission  @relation(fields: [missionId], references: [id], onDelete: Cascade)
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@id([missionId, businessId])
+  @@index([businessId])
+}
+
+model MissionCategory {
+  missionId  Int
+  categoryId Int
+
+  mission  Mission  @relation(fields: [missionId], references: [id], onDelete: Cascade)
+  category Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@id([missionId, categoryId])
+  @@index([categoryId])
+}
+
+model MissionProgress {
+  missionId   Int
+  userId      Int
+  progress    Int       @default(0)
+  completedAt DateTime?
+
+  mission Mission @relation(fields: [missionId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([missionId, userId])
+  @@index([userId])
+}
+
+model BusinessDiscovery {
+  userId       Int
+  businessId   Int
+  discoveredAt DateTime @default(now())
+
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  business Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@id([userId, businessId])
+  @@index([businessId])
+}
+
+// ==================================================
+// PROMOTIONS
+// ==================================================
+
+model Promotion {
+  id          Int             @id @default(autoincrement())
+  name        String          @db.VarChar(150)
+  type        PromotionType
+  value       Decimal         @db.Decimal(10, 2)
+  startsAt    DateTime
+  endsAt      DateTime
+  status      PromotionStatus @default(DRAFT)
+  createdById Int
+  deletedAt   DateTime?
+
+  createdBy User @relation(fields: [createdById], references: [id], onDelete: Restrict)
+
+  businesses     PromotionBusiness[]
+  categories     PromotionCategory[]
+  pointMovements PointMovement[]
+
+  @@index([createdById])
+}
+
+model PromotionBusiness {
+  promotionId Int
+  businessId  Int
+
+  promotion Promotion @relation(fields: [promotionId], references: [id], onDelete: Cascade)
+  business  Business  @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  @@id([promotionId, businessId])
+  @@index([businessId])
+}
+
+model PromotionCategory {
+  promotionId Int
+  categoryId  Int
+
+  promotion Promotion @relation(fields: [promotionId], references: [id], onDelete: Cascade)
+  category  Category  @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@id([promotionId, categoryId])
+  @@index([categoryId])
+}
+
+// ==================================================
+// EVENTS & BADGES
+// ==================================================
+
+/// Paseo event. Attending (check-in by Paseo staff) grants `pointsReward` once and the event badge.
+model Event {
+  id           Int         @id @default(autoincrement())
+  name         String      @db.VarChar(150)
+  description  String?     @db.Text
+  location     String?     @db.VarChar(150)
+  startsAt     DateTime
+  endsAt       DateTime
+  pointsReward Int         @default(0)
+  status       EventStatus @default(DRAFT)
+  createdById  Int
+  deletedAt    DateTime?
+
+  createdBy User @relation(fields: [createdById], references: [id], onDelete: Restrict)
+
+  attendances    EventAttendance[]
+  pointMovements PointMovement[]
+
+  @@index([createdById])
+}
+
+model EventAttendance {
+  eventId       Int
+  userId        Int
+  checkedInById Int
+  checkedInAt   DateTime @default(now())
+
+  event       Event @relation(fields: [eventId], references: [id], onDelete: Restrict)
+  user        User  @relation("AttendanceUser", fields: [userId], references: [id], onDelete: Restrict)
+  checkedInBy User  @relation("AttendanceCheckedInBy", fields: [checkedInById], references: [id], onDelete: Restrict)
+
+  @@id([eventId, userId])
+  @@index([userId])
+  @@index([checkedInById])
+}
+
+/// Achievement definition. Who earned it is derived from the history (purchases, Status, missions, attendances).
+model Badge {
+  id          Int         @id @default(autoincrement())
+  name        String      @db.VarChar(100)
+  description String?     @db.Text
+  type        BadgeType
+  goal        Int?
+  tierId      Int?
+  categoryId  Int?
+  date        DateTime?   @db.Date
+  status      BadgeStatus @default(ACTIVE)
+  createdById Int
+  deletedAt   DateTime?
+
+  tier      Tier?     @relation(fields: [tierId], references: [id], onDelete: Restrict)
+  category  Category? @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  createdBy User      @relation(fields: [createdById], references: [id], onDelete: Restrict)
+
+  @@index([tierId])
+  @@index([categoryId])
+  @@index([createdById])
+}
+
+// ==================================================
+// FRAUD, AUDIT & SETTINGS
+// ==================================================
+
+model FraudAlert {
+  id            Int              @id @default(autoincrement())
+  transactionId Int?
+  redemptionId  Int?
+  type          FraudAlertType
+  riskScore     Int
+  status        FraudAlertStatus @default(OPEN)
+  createdAt     DateTime         @default(now())
+
+  transaction Transaction? @relation(fields: [transactionId], references: [id], onDelete: Restrict)
+  redemption  Redemption?  @relation(fields: [redemptionId], references: [id], onDelete: Restrict)
+
+  @@index([status])
+  @@index([transactionId])
+  @@index([redemptionId])
+}
+
+model AuditLog {
+  id         Int      @id @default(autoincrement())
+  userId     Int
+  action     String   @db.VarChar(100)
+  entityType String   @db.VarChar(50)
+  entityId   Int
+  createdAt  DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Restrict)
+
+  @@index([userId])
+}
+
+model SystemSetting {
+  key       String   @id @db.VarChar(100)
+  value     String   @db.VarChar(255)
+  updatedAt DateTime @updatedAt
+}

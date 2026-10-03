@@ -1,7 +1,8 @@
 import { useRef, useState, type CSSProperties } from 'react'
 import { Link } from 'react-router-dom'
-import { ArrowRight, ArrowUpRight, Clock, Flame, Gift, MapPin, Sparkles, Ticket } from 'lucide-react'
+import { ArrowRight, ArrowUpRight, Clock, Flame, Gift, MapPin, ScanLine, Sparkles, Ticket } from 'lucide-react'
 import { useDb } from '../../data/store'
+import { promotionReason, spinAvailability } from '../../domain/engagement'
 import {
   activePromotions,
   activeTiers,
@@ -9,10 +10,12 @@ import {
   badgeHint,
   earnedBadges,
   evaluateMission,
+  getSetting,
   isGlobalScope,
   liveMissions,
   nextTier,
   pendingBadges,
+  personalPromotions,
   pointsBalance,
   promotionScope,
   quotePurchase,
@@ -42,6 +45,8 @@ import { Medallion } from '../../components/BadgeMedal'
 import { EventCard } from '../../components/EventCard'
 import { MemberCard } from '../../components/MemberCard'
 import { Notices } from '../../components/Notices'
+import { BirthdayCard, KycBanner } from '../../components/BirthdayCard'
+import { VisitCard } from '../../components/VisitCard'
 import { CountUp, Empty, MoreLink, PageHeader, Progress, ProgressRing, prefersReducedMotion } from '../../components/ui'
 
 const tierClass = (name: string) => name.toLowerCase()
@@ -55,7 +60,20 @@ function SectionHead({ title, to, label }: { title: string; to?: string; label?:
   )
 }
 
-function LevelPanel({ tiers, tier, next, status }: { tiers: Tier[]; tier: Tier | null; next: Tier | null; status: number }) {
+function LevelPanel({
+  tiers,
+  tier,
+  next,
+  status,
+  statusPerBs,
+}: {
+  tiers: Tier[]
+  tier: Tier | null
+  next: Tier | null
+  status: number
+  statusPerBs: number
+}) {
+  const missingBs = next && statusPerBs > 0 ? Math.ceil((next.minimumStatus - status) / statusPerBs) : null
   const index = tier ? tiers.findIndex((t) => t.id === tier.id) : -1
   const floor = tier?.minimumStatus ?? 0
   const step = next ? (status - floor) / Math.max(1, next.minimumStatus - floor) : 0
@@ -69,8 +87,13 @@ function LevelPanel({ tiers, tier, next, status }: { tiers: Tier[]; tier: Tier |
         <p>
           {next ? (
             <>
-              Te faltan <b className="tabular">{formatInt(next.minimumStatus - status)}</b> puntos de nivel. Se ganan con cada compra y no se
-              gastan al canjear.
+              Te faltan <b className="tabular">{formatInt(next.minimumStatus - status)}</b> puntos de nivel
+              {missingBs !== null && (
+                <>
+                  , unos <b className="tabular">{formatMoney(missingBs)}</b> en compras
+                </>
+              )}
+              . Se ganan con cada compra y no se gastan al canjear.
             </>
           ) : (
             'Tus compras rinden con el multiplicador más alto del programa.'
@@ -114,7 +137,7 @@ function multiplierCopy(value: number): string {
   return `Tus compras suman un ${formatInt(Math.round((value - 1) * 100))}% más de puntos.`
 }
 
-function PromoTicket({ db, promo, userId }: { db: Database; promo: Promotion; userId: number }) {
+function PromoTicket({ db, promo, userId, reason }: { db: Database; promo: Promotion; userId: number; reason?: string }) {
   const scope = promotionScope(db, promo.id)
   const global = isGlobalScope(scope)
   const places = scopeBusinesses(db, scope)
@@ -137,8 +160,12 @@ function PromoTicket({ db, promo, userId }: { db: Database; promo: Promotion; us
         <span className="promo-unit">{multiplier ? 'puntos' : 'puntos extra'}</span>
       </div>
       <div className="promo-body">
+        {reason && <span className="promo-reason">{reason}</span>}
         <h3>{promo.name}</h3>
-        <p className="promo-what">{multiplier ? multiplierCopy(promo.value) : `Sumas ${formatInt(promo.value)} puntos extra en cada compra.`}</p>
+        <p className="promo-what">
+          {multiplier ? multiplierCopy(promo.value) : `Sumas ${formatInt(promo.value)} puntos extra en cada compra.`}
+          {promo.singleUse && ' Vale para una compra.'}
+        </p>
         {quote && bonus > 0 && (
           <div className="promo-eq">
             <span>Compra de {formatMoney(100)}</span>
@@ -208,6 +235,9 @@ export function CustomerHome() {
   const nextBadge = pendingBadges(db, user.id)[0]
 
   const promotions = activePromotions(db)
+  const forYou = personalPromotions(db, user.id).filter((p) => p.origin !== 'VISIT_CARD')
+  const spins = spinAvailability(db, user.id)
+  const spinReady = !spins.dailyUsed || spins.extraUnlock !== null || spins.freeAvailable > 0
   const missions = liveMissions(db)
     .map((m) => {
       const row = db.missionProgress.find((p) => p.missionId === m.id && p.userId === user.id)
@@ -225,11 +255,46 @@ export function CustomerHome() {
     <div className="page home">
       <PageHeader title={`Hola, ${user.firstName}`} subtitle="Tu tarjeta, tus beneficios y lo que pasa hoy en el Paseo." />
       <Notices />
+      <KycBanner db={db} userId={user.id} />
+      <BirthdayCard db={db} user={user} />
 
       <div className="home-hero">
         <MemberCard ref={cardRef} user={user} tierName={tier?.name ?? null} points={points} revealed={revealed} onToggle={() => setRevealed((v) => !v)} />
-        <LevelPanel tiers={tiers} tier={tier} next={next} status={status} />
+        <LevelPanel tiers={tiers} tier={tier} next={next} status={status} statusPerBs={getSetting(db, 'STATUS_BASE_RATE')} />
       </div>
+
+      <div className="quick">
+        <Link to="/app/spin" className={`quick-link ${spinReady ? 'is-ready' : ''}`}>
+          <span className="quick-icon" aria-hidden>
+            <ClubGem size={22} />
+          </span>
+          <span className="quick-text">
+            <strong>Ruleta del Paseo</strong>
+            <small>
+              {!spins.dailyUsed
+                ? `Tu giro de hoy está listo · ${formatInt(spins.dailyCost)} puntos`
+                : spins.extraUnlock
+                  ? 'Tu compra desbloqueó otro giro'
+                  : spins.freeAvailable > 0
+                    ? `Tienes ${spins.freeAvailable === 1 ? 'un giro gratis' : `${formatInt(spins.freeAvailable)} giros gratis`}`
+                    : 'Compra y desbloquea otro giro'}
+            </small>
+          </span>
+          <ArrowUpRight size={16} aria-hidden />
+        </Link>
+        <Link to="/app/scan" className="quick-link">
+          <span className="quick-icon" aria-hidden>
+            <ScanLine size={22} />
+          </span>
+          <span className="quick-text">
+            <strong>Visita un espacio</strong>
+            <small>Escanea el QR de la Galería de Arte y otros espacios</small>
+          </span>
+          <ArrowUpRight size={16} aria-hidden />
+        </Link>
+      </div>
+
+      <VisitCard db={db} userId={user.id} />
 
       <div className="tiles">
         <Link to="/app/activity" className={`tile tile-streak ${streak.activeThisWeek ? 'is-safe' : 'is-at-risk'}`}>
@@ -328,6 +393,17 @@ export function CustomerHome() {
           )}
         </Link>
       </div>
+
+      {forYou.length > 0 && (
+        <section className="home-section">
+          <SectionHead title="Para ti" />
+          <div className="promos">
+            {forYou.map((p) => (
+              <PromoTicket key={p.id} db={db} promo={p} userId={user.id} reason={promotionReason(p)} />
+            ))}
+          </div>
+        </section>
+      )}
 
       {promotions.length > 0 && (
         <section className="home-section">

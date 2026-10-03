@@ -6,19 +6,23 @@ import {
   BarChart3,
   BookOpen,
   Building2,
+  CakeSlice,
   CalendarDays,
   ChevronUp,
   ClipboardList,
+  Disc3,
   FileX2,
   Compass,
   FolderTree,
   Gift,
   History,
   Home,
+  IdCard,
   LayoutDashboard,
   LayoutGrid,
   LogOut,
   Map as MapIcon,
+  MapPin,
   Medal,
   Megaphone,
   ReceiptText,
@@ -58,6 +62,8 @@ const CUSTOMER_NAV: NavItem[] = [
   { to: '/app/rewards', label: 'Recompensas', short: 'Premios', icon: Gift, primary: true },
   { to: '/app/missions', label: 'Misiones', icon: Target, primary: true },
   { to: '/app/passport', label: 'Pasaporte', icon: MapIcon, primary: true },
+  { to: '/app/spin', label: 'Ruleta', icon: Disc3 },
+  { to: '/app/scan', label: 'Visitar un espacio', short: 'Espacios', icon: ScanLine },
   { to: '/app/directory', label: 'Directorio', icon: Compass },
   { to: '/app/activity', label: 'Actividad', icon: History },
   { to: '/app/badges', label: 'Insignias', icon: Award },
@@ -73,9 +79,12 @@ const ADMIN_NAV: NavItem[] = [
   { to: '/admin/missions', label: 'Misiones', icon: Target },
   { to: '/admin/promotions', label: 'Promociones', icon: Megaphone },
   { to: '/admin/events', label: 'Eventos', icon: CalendarDays },
+  { to: '/admin/spaces', label: 'Espacios', icon: MapPin },
+  { to: '/admin/spin', label: 'Ruleta', icon: Disc3 },
   { to: '/admin/badges', label: 'Insignias', icon: Award },
   { to: '/admin/fraud', label: 'Fraude', icon: AlertTriangle, primary: true },
   { to: '/admin/cancellations', label: 'Anulaciones', icon: FileX2, primary: true },
+  { to: '/admin/kyc', label: 'Verificaciones', icon: IdCard },
   { to: '/admin/users', label: 'Usuarios', icon: Users },
   { to: '/admin/audit', label: 'Auditoría', icon: ClipboardList },
   { to: '/admin/settings', label: 'Configuración', icon: Settings },
@@ -84,9 +93,10 @@ const ADMIN_NAV: NavItem[] = [
 function merchantNav(businessId: number, isManager: boolean): NavItem[] {
   const base = `/merchant/${businessId}`
   return [
-    { to: base, label: 'Registrar compra', short: 'Compra', icon: ReceiptText, end: true },
-    { to: `${base}/validate`, label: 'Validar canje', short: 'Canje', icon: ScanLine },
-    { to: `${base}/transactions`, label: 'Movimientos', icon: History },
+    { to: base, label: 'Registrar compra', short: 'Compra', icon: ReceiptText, end: true, primary: true },
+    { to: `${base}/validate`, label: 'Validar canje', short: 'Canje', icon: ScanLine, primary: true },
+    { to: `${base}/birthday`, label: 'Cumpleaños', icon: CakeSlice, primary: true },
+    { to: `${base}/transactions`, label: 'Movimientos', icon: History, primary: true },
     ...(isManager
       ? [
           { to: `${base}/rewards`, label: 'Recompensas', short: 'Premios', icon: Gift },
@@ -106,10 +116,13 @@ export function AppShell() {
   if (!user) return null
 
   const role = user.role === 'ADMIN' ? 'admin' : user.role === 'MERCHANT' ? 'merchant' : 'customer'
-  const pendingCancellations = db.cancellationRequests.filter((r) => r.status === 'PENDING').length
+  const adminCounts: Record<string, number> = {
+    '/admin/cancellations': db.cancellationRequests.filter((r) => r.status === 'PENDING').length,
+    '/admin/kyc': db.kycRequests.filter((r) => r.status === 'PENDING').length,
+  }
   const nav =
     role === 'admin'
-      ? ADMIN_NAV.map((item) => (item.to === '/admin/cancellations' ? { ...item, count: pendingCancellations } : item))
+      ? ADMIN_NAV.map((item) => (item.to in adminCounts ? { ...item, count: adminCounts[item.to] } : item))
       : role === 'merchant'
         ? workplace
           ? merchantNav(workplace.business.id, workplace.membership.role === 'MANAGER')

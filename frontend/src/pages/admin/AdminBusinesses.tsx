@@ -5,6 +5,7 @@ import { DAY_LABELS, DAYS_IN_ORDER, MEMBER_ROLE_LABELS, floorLabel, fullName } f
 import type { Business, BusinessMemberRole, BusinessSchedule, Database } from '../../types/domain'
 import { Badge, Card, Empty, Field, Modal, MultiSelect, notify, run, vanish } from '../../components/ui'
 import { confirmDialog } from '../../components/dialog'
+import { LIMITS, emailError, floorError, localNumberError, passwordError, personNameError, phoneError, urlError } from '../../domain/validation'
 import { AdminHeader, FormActions, StatusBadge, categoryLabel, liveCategoryOptions } from './shared'
 
 type ScheduleDraft = Omit<BusinessSchedule, 'id' | 'businessId'>
@@ -49,6 +50,16 @@ function toDraft(db: Database, b?: Business): Draft {
 
 const orNull = (v: string) => v.trim() || null
 
+function scheduleError(schedules: ScheduleDraft[]): string | null {
+  for (const s of schedules) {
+    if (s.isClosed) continue
+    const day = DAY_LABELS[s.dayOfWeek].toLowerCase()
+    if (!s.openTime || !s.closeTime) return `Indica la hora de apertura y de cierre del ${day}`
+    if (s.openTime >= s.closeTime) return `El ${day}, la apertura debe ser anterior al cierre`
+  }
+  return null
+}
+
 const EMPTY_ACCOUNT = { firstName: '', lastName: '', email: '', phone: '', password: '', role: 'STAFF' as BusinessMemberRole }
 
 function RoleSelect({ value, onChange }: { value: BusinessMemberRole; onChange: (role: BusinessMemberRole) => void }) {
@@ -81,7 +92,15 @@ function MembersPanel({ businessId }: { businessId: number }) {
       setCreating(false)
     }
   }
-  const accountReady = account.firstName.trim() && account.lastName.trim() && account.email.trim() && account.password.length >= 6
+  const accountErrors = {
+    firstName: account.firstName.trim() ? personNameError(account.firstName, 'El nombre') : null,
+    lastName: account.lastName.trim() ? personNameError(account.lastName, 'El apellido') : null,
+    email: account.email.trim() ? emailError(account.email) : null,
+    password: account.password ? passwordError(account.password) : null,
+    phone: phoneError(account.phone),
+  }
+  const accountReady =
+    account.firstName.trim() && account.lastName.trim() && account.email.trim() && account.password && !Object.values(accountErrors).some(Boolean)
 
   return (
     <div className="stack">
@@ -123,20 +142,42 @@ function MembersPanel({ businessId }: { businessId: number }) {
       )}
       <span className="field-label">Nueva cuenta de personal</span>
       <div className="grid-2">
-        <Field label="Nombre">
-          <input value={account.firstName} onChange={(e) => setAccount({ ...account, firstName: e.target.value })} />
+        <Field label="Nombre" error={accountErrors.firstName}>
+          <input maxLength={LIMITS.personName} value={account.firstName} onChange={(e) => setAccount({ ...account, firstName: e.target.value })} />
         </Field>
-        <Field label="Apellido">
-          <input value={account.lastName} onChange={(e) => setAccount({ ...account, lastName: e.target.value })} />
+        <Field label="Apellido" error={accountErrors.lastName}>
+          <input maxLength={LIMITS.personName} value={account.lastName} onChange={(e) => setAccount({ ...account, lastName: e.target.value })} />
         </Field>
-        <Field label="Correo">
-          <input type="email" autoComplete="off" value={account.email} onChange={(e) => setAccount({ ...account, email: e.target.value })} />
+        <Field label="Correo" error={accountErrors.email}>
+          <input
+            type="email"
+            autoComplete="off"
+            maxLength={LIMITS.email}
+            value={account.email}
+            onChange={(e) => setAccount({ ...account, email: e.target.value })}
+          />
         </Field>
-        <Field label="Contraseña inicial" hint="Mínimo 6 caracteres. Entrégasela a la persona.">
-          <input type="text" autoComplete="off" value={account.password} onChange={(e) => setAccount({ ...account, password: e.target.value })} />
+        <Field
+          label="Contraseña inicial"
+          hint={`Mínimo ${LIMITS.passwordMin} caracteres, con letras y números. Entrégasela a la persona.`}
+          error={accountErrors.password}
+        >
+          <input
+            type="text"
+            autoComplete="off"
+            maxLength={LIMITS.passwordMax}
+            value={account.password}
+            onChange={(e) => setAccount({ ...account, password: e.target.value })}
+          />
         </Field>
-        <Field label="Teléfono (opcional)">
-          <input type="tel" value={account.phone} onChange={(e) => setAccount({ ...account, phone: e.target.value })} />
+        <Field label="Teléfono (opcional)" error={accountErrors.phone}>
+          <input
+            type="tel"
+            inputMode="tel"
+            maxLength={LIMITS.phone}
+            value={account.phone}
+            onChange={(e) => setAccount({ ...account, phone: e.target.value })}
+          />
         </Field>
         <Field label="Cargo">
           <RoleSelect value={account.role} onChange={(r) => setAccount({ ...account, role: r })} />
@@ -150,12 +191,20 @@ function MembersPanel({ businessId }: { businessId: number }) {
 
       <span className="field-label">Asignar una cuenta de personal existente</span>
       <div className="row gap wrap">
-        <input placeholder="Correo de la cuenta de personal" value={email} onChange={(e) => setEmail(e.target.value)} className="grow" />
+        <input
+          type="email"
+          placeholder="Correo de la cuenta de personal"
+          aria-label="Correo de la cuenta de personal"
+          maxLength={LIMITS.email}
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          className="grow"
+        />
         <RoleSelect value={role} onChange={setRole} />
         <button
           type="button"
           className="btn"
-          disabled={!email.trim()}
+          disabled={!!emailError(email)}
           onClick={async () => {
             if (await run('saveMembership', { email, businessId, role }, 'Persona agregada al equipo')) setEmail('')
           }}
@@ -176,9 +225,19 @@ export function AdminBusinesses() {
   const [draft, setDraft] = useState<Draft | null>(null)
   const businesses = db.businesses.filter((b) => b.deletedAt === null).sort((a, b) => a.name.localeCompare(b.name))
 
+  const errors = draft && {
+    floor: floorError(draft.floor),
+    localNumber: localNumberError(draft.localNumber),
+    phone: phoneError(draft.phone),
+    logoUrl: urlError(draft.logoUrl),
+    categories: draft.categoryIds.length === 0 ? 'Elige al menos una categoría' : null,
+    schedule: scheduleError(draft.schedules),
+  }
+  const invalid = !!errors && Object.values(errors).some(Boolean)
+
   const save = async (e: FormEvent) => {
     e.preventDefault()
-    if (!draft) return
+    if (!draft || invalid) return
     const saved = await run(
       'saveBusiness',
       {
@@ -277,7 +336,7 @@ export function AdminBusinesses() {
           <form className="stack" onSubmit={save}>
             <div className="grid-2">
               <Field label="Nombre">
-                <input required value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} />
+                <input required maxLength={LIMITS.name} value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} />
               </Field>
               <Field label="Estado">
                 <select value={draft.status} onChange={(e) => setDraft({ ...draft, status: e.target.value as Business['status'] })}>
@@ -287,31 +346,47 @@ export function AdminBusinesses() {
               </Field>
             </div>
             <Field label="Descripción">
-              <textarea rows={2} value={draft.description} onChange={(e) => setDraft({ ...draft, description: e.target.value })} />
+              <textarea
+                rows={2}
+                maxLength={LIMITS.description}
+                value={draft.description}
+                onChange={(e) => setDraft({ ...draft, description: e.target.value })}
+              />
             </Field>
             <div className="grid-4">
-              <Field label="Piso">
-                <input value={draft.floor} onChange={(e) => setDraft({ ...draft, floor: e.target.value })} />
+              <Field label="Piso" hint="PB o número" error={errors?.floor}>
+                <input maxLength={LIMITS.floor} placeholder="PB" value={draft.floor} onChange={(e) => setDraft({ ...draft, floor: e.target.value })} />
               </Field>
               <Field label="Sector">
-                <input value={draft.sector} onChange={(e) => setDraft({ ...draft, sector: e.target.value })} />
+                <input maxLength={LIMITS.sector} value={draft.sector} onChange={(e) => setDraft({ ...draft, sector: e.target.value })} />
               </Field>
-              <Field label="Local">
-                <input value={draft.localNumber} onChange={(e) => setDraft({ ...draft, localNumber: e.target.value })} />
+              <Field label="Local" error={errors?.localNumber}>
+                <input maxLength={LIMITS.localNumber} value={draft.localNumber} onChange={(e) => setDraft({ ...draft, localNumber: e.target.value })} />
               </Field>
-              <Field label="Teléfono">
-                <input value={draft.phone} onChange={(e) => setDraft({ ...draft, phone: e.target.value })} />
+              <Field label="Teléfono" error={errors?.phone}>
+                <input type="tel" inputMode="tel" maxLength={LIMITS.phone} value={draft.phone} onChange={(e) => setDraft({ ...draft, phone: e.target.value })} />
               </Field>
             </div>
-            <Field label="URL del logo (opcional)">
-              <input type="url" value={draft.logoUrl} onChange={(e) => setDraft({ ...draft, logoUrl: e.target.value })} />
+            <Field label="URL del logo (opcional)" error={errors?.logoUrl}>
+              <input
+                type="url"
+                maxLength={LIMITS.url}
+                placeholder="https://"
+                value={draft.logoUrl}
+                onChange={(e) => setDraft({ ...draft, logoUrl: e.target.value })}
+              />
             </Field>
-            <Field label="Categorías">
+            <Field label="Categorías" error={errors?.categories}>
               <MultiSelect options={liveCategoryOptions(db)} value={draft.categoryIds} onChange={(categoryIds) => setDraft({ ...draft, categoryIds })} />
             </Field>
 
             <div>
               <span className="field-label">Horario</span>
+              {errors?.schedule && (
+                <span className="field-error" role="alert">
+                  {errors.schedule}
+                </span>
+              )}
               <div className="schedule-editor">
                 {draft.schedules.map((s, i) => (
                   <div key={s.dayOfWeek} className="schedule-row">
@@ -329,7 +404,7 @@ export function AdminBusinesses() {
 
             {draft.id ? <MembersPanel businessId={draft.id} /> : <p className="muted small">Guarda el establecimiento para asignar su equipo.</p>}
 
-            <FormActions onCancel={() => setDraft(null)} />
+            <FormActions onCancel={() => setDraft(null)} disabled={invalid} />
           </form>
         </Modal>
       )}

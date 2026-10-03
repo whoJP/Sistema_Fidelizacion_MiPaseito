@@ -11,6 +11,8 @@
     "db:generate": "prisma generate",
     "db:seed": "tsx --env-file=.env prisma/seed.ts",
     "db:setup": "prisma migrate deploy && prisma generate && npm run db:seed",
+    "demo:coupons": "tsx --env-file=.env scripts/test-coupons.ts",
+    "qr:sample": "tsx --env-file=.env scripts/customer-qr-sample.ts",
     "prisma:format": "prisma format",
     "prisma:validate": "prisma validate",
     "prisma:migrate": "prisma migrate dev"

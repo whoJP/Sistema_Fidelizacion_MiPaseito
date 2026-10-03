@@ -54,6 +54,9 @@ export const formatDate = (iso: string) => dateFmt.format(new Date(iso))
 export const formatDateTime = (iso: string) => dateTimeFmt.format(new Date(iso))
 /** Formats a calendar day stored as `YYYY-MM-DD` without shifting it to another day. */
 export const formatDateKey = (key: string) => dateFmt.format(new Date(`${key}T12:00:00`))
+const longDayFmt = new Intl.DateTimeFormat('es-BO', { day: 'numeric', month: 'long' })
+/** `15 de marzo` for a `YYYY-MM-DD` calendar day. */
+export const formatLongDayKey = (key: string) => longDayFmt.format(new Date(`${key}T12:00:00`))
 export const plural = (count: number, one: string, many: string) => `${formatInt(count)} ${count === 1 ? one : many}`
 export const signed = (value: number) => (value > 0 ? `+${formatInt(value)}` : formatInt(value))
 
@@ -105,6 +108,10 @@ export const POINT_MOVEMENT_LABELS: Record<PointMovementType, string> = {
   REDEMPTION: 'Canje',
   ADJUSTMENT: 'Ajuste manual',
   REVERSAL: 'Devolución',
+  CHECK_IN: 'Visita a un espacio',
+  SPIN: 'Ruleta',
+  BIRTHDAY: 'Regalo de cumpleaños',
+  EXPIRATION: 'Vencimiento de puntos',
 }
 
 export const REWARD_TYPE_LABELS: Record<RewardType, string> = {
@@ -133,6 +140,8 @@ export const STATUS_MOVEMENT_LABELS: Record<StatusMovementType, string> = {
   DISCOVERY: 'Nuevo descubrimiento',
   STREAK: 'Racha semanal',
   ADJUSTMENT: 'Ajuste o devolución',
+  WELCOME: 'Bienvenida al club',
+  CHECK_IN: 'Visita a un espacio',
 }
 
 export const FRAUD_TYPE_LABELS: Record<FraudAlertType, string> = {
@@ -140,6 +149,7 @@ export const FRAUD_TYPE_LABELS: Record<FraudAlertType, string> = {
   REUSED_REDEMPTION: 'Canje reutilizado',
   HIGH_FREQUENCY: 'Frecuencia anormal',
   ABNORMAL_AMOUNT: 'Monto anormal',
+  CHECK_IN_ONLY: 'Solo visitas, sin compras',
 }
 
 /** `datetime-local` input value <-> ISO string. */

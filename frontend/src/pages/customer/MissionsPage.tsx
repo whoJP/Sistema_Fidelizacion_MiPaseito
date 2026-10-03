@@ -4,9 +4,16 @@ import { evaluateMission, isGlobalScope, liveMissions, missionScope } from '../.
 import { formatDate, formatInt, formatMoney, MISSION_TYPE_LABELS } from '../../lib/format'
 import { useUser } from '../../session'
 import { Badge, Card, Empty, PageHeader, ProgressRing } from '../../components/ui'
+import type { Mission } from '../../types/domain'
 
-const prize = (points: number, status: number) =>
-  [points > 0 && `+${formatInt(points)} puntos`, status > 0 && `+${formatInt(status)} de nivel`].filter(Boolean).join(' · ')
+const prize = ({ rewardPoints, rewardStatus, rewardSpins }: Pick<Mission, 'rewardPoints' | 'rewardStatus' | 'rewardSpins'>) =>
+  [
+    rewardPoints > 0 && `+${formatInt(rewardPoints)} puntos`,
+    rewardStatus > 0 && `+${formatInt(rewardStatus)} de nivel`,
+    rewardSpins > 0 && (rewardSpins === 1 ? '1 giro gratis' : `${rewardSpins} giros gratis`),
+  ]
+    .filter(Boolean)
+    .join(' · ')
 
 export function MissionsPage() {
   const db = useDb()
@@ -58,7 +65,7 @@ export function MissionsPage() {
               <dl className="mission-facts">
                 <div>
                   <dt>Premio</dt>
-                  <dd className="gold">{prize(mission.rewardPoints, mission.rewardStatus)}</dd>
+                  <dd className="gold">{prize(mission)}</dd>
                 </div>
                 {scope && (
                   <div>
@@ -90,7 +97,7 @@ export function MissionsPage() {
                       <div className="muted small">Completada el {formatDate(completedAt!)}</div>
                     </div>
                   </div>
-                  <span className="small">{prize(mission.rewardPoints, mission.rewardStatus)}</span>
+                  <span className="small">{prize(mission)}</span>
                 </li>
               ))}
             </ul>

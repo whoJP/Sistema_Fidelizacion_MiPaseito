@@ -6,6 +6,7 @@ import type { Badge as BadgeDef, BadgeStatus, BadgeType, Database } from '../../
 import { BadgeMedal } from '../../components/BadgeMedal'
 import { Card, Empty, Field, Modal, run, vanish } from '../../components/ui'
 import { confirmDialog } from '../../components/dialog'
+import { LIMITS, MAX_GOAL } from '../../domain/validation'
 import { AdminHeader, FormActions, StatusBadge, liveCategoryOptions } from './shared'
 
 interface Draft {
@@ -174,7 +175,13 @@ export function AdminBadges() {
           <form className="stack" onSubmit={save}>
             <div className="grid-2">
               <Field label="Nombre">
-                <input required value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} placeholder="Ej. Navidad 2026" />
+                <input
+                  required
+                  maxLength={LIMITS.badgeName}
+                  value={draft.name}
+                  onChange={(e) => setDraft({ ...draft, name: e.target.value })}
+                  placeholder="Ej. Navidad 2026"
+                />
               </Field>
               <Field label="Estado">
                 <select value={draft.status} onChange={(e) => setDraft({ ...draft, status: e.target.value as BadgeStatus })}>
@@ -184,7 +191,7 @@ export function AdminBadges() {
               </Field>
             </div>
             <Field label="Descripción corta">
-              <input value={draft.description} onChange={(e) => setDraft({ ...draft, description: e.target.value })} />
+              <input maxLength={LIMITS.description} value={draft.description} onChange={(e) => setDraft({ ...draft, description: e.target.value })} />
             </Field>
             <Field label="Cómo se gana">
               <select value={draft.type} onChange={(e) => setDraft({ ...draft, type: e.target.value as BadgeType })}>
@@ -198,7 +205,7 @@ export function AdminBadges() {
 
             {draft.type === 'SPECIAL_DATE' && (
               <Field label="Fecha" hint="Vale todo ese día, de 00:00 a 23:59. La gana quien compre o asista a un evento ese día.">
-                <input type="date" required value={draft.date} onChange={(e) => setDraft({ ...draft, date: e.target.value })} />
+                <input type="date" required min="2000-01-01" max="2100-12-31" value={draft.date} onChange={(e) => setDraft({ ...draft, date: e.target.value })} />
               </Field>
             )}
             {draft.type === 'TIER_REACHED' && (
@@ -206,7 +213,7 @@ export function AdminBadges() {
                 <select required value={draft.tierId} onChange={(e) => setDraft({ ...draft, tierId: e.target.value })}>
                   <option value="">Elige un nivel</option>
                   {db.tiers
-                    .slice()
+                    .filter((t) => t.isActive)
                     .sort((a, b) => a.minimumStatus - b.minimumStatus)
                     .map((t) => (
                       <option key={t.id} value={t.id}>
@@ -230,7 +237,7 @@ export function AdminBadges() {
             )}
             {needsGoal && (
               <Field label="Cantidad necesaria">
-                <input type="number" min={1} step={1} required value={draft.goal} onChange={(e) => setDraft({ ...draft, goal: e.target.value })} />
+                <input type="number" min={1} max={MAX_GOAL} step={1} required value={draft.goal} onChange={(e) => setDraft({ ...draft, goal: e.target.value })} />
               </Field>
             )}
 

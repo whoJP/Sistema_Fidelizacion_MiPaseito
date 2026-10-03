@@ -11,6 +11,8 @@ import { DirectoryPage } from './pages/customer/DirectoryPage'
 import { BusinessDetailPage } from './pages/customer/BusinessDetailPage'
 import { ActivityPage } from './pages/customer/ActivityPage'
 import { BadgesPage } from './pages/customer/BadgesPage'
+import { SpinPage } from './pages/customer/SpinPage'
+import { ScanSpacePage } from './pages/customer/ScanSpacePage'
 import { AccountPage } from './pages/AccountPage'
 import { RegisterPurchasePage } from './pages/merchant/RegisterPurchasePage'
 import { ValidateRedemptionPage } from './pages/merchant/ValidateRedemptionPage'
@@ -18,6 +20,7 @@ import { MerchantTransactionsPage } from './pages/merchant/MerchantTransactionsP
 import { CatalogPage } from './pages/merchant/CatalogPage'
 import { MerchantRewardsPage } from './pages/merchant/MerchantRewardsPage'
 import { MerchantUnassigned } from './pages/merchant/MerchantUnassigned'
+import { BirthdayPage } from './pages/merchant/BirthdayPage'
 import type { UserRole } from './types/domain'
 import { AdminDashboard } from './pages/admin/AdminDashboard'
 import { AdminBusinesses } from './pages/admin/AdminBusinesses'
@@ -33,6 +36,9 @@ import { AdminMetrics } from './pages/admin/AdminMetrics'
 import { AdminEvents } from './pages/admin/AdminEvents'
 import { AdminBadges } from './pages/admin/AdminBadges'
 import { AdminAudit } from './pages/admin/AdminAudit'
+import { AdminSpaces } from './pages/admin/AdminSpaces'
+import { AdminSpin } from './pages/admin/AdminSpin'
+import { AdminKyc } from './pages/admin/AdminKyc'
 import { AdminCancellations } from './pages/admin/AdminCancellations'
 
 function homeFor(session: ReturnType<typeof useSession>) {
@@ -91,6 +97,8 @@ export default function App() {
             <Route path="/app/directory/:businessId" element={<BusinessDetailPage />} />
             <Route path="/app/activity" element={<ActivityPage />} />
             <Route path="/app/badges" element={<BadgesPage />} />
+            <Route path="/app/spin" element={<SpinPage />} />
+            <Route path="/app/scan" element={<ScanSpacePage />} />
             <Route path="/app/profile" element={<Navigate to="/account" replace />} />
           </Route>
 
@@ -102,6 +110,7 @@ export default function App() {
               <Route index element={<RegisterPurchasePage />} />
               <Route path="validate" element={<ValidateRedemptionPage />} />
               <Route path="transactions" element={<MerchantTransactionsPage />} />
+              <Route path="birthday" element={<BirthdayPage />} />
               <Route element={<RequireMembership managerOnly />}>
                 <Route path="catalog" element={<CatalogPage />} />
                 <Route path="rewards" element={<MerchantRewardsPage />} />
@@ -125,6 +134,9 @@ export default function App() {
             <Route path="/admin/events" element={<AdminEvents />} />
             <Route path="/admin/badges" element={<AdminBadges />} />
             <Route path="/admin/audit" element={<AdminAudit />} />
+            <Route path="/admin/spaces" element={<AdminSpaces />} />
+            <Route path="/admin/spin" element={<AdminSpin />} />
+            <Route path="/admin/kyc" element={<AdminKyc />} />
           </Route>
         </Route>
       </Route>

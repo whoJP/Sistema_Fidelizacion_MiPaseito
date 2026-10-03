@@ -23,10 +23,15 @@ export type PointMovementType =
   | 'REDEMPTION'
   | 'ADJUSTMENT'
   | 'REVERSAL'
-export type StatusMovementType = 'PURCHASE' | 'MISSION' | 'DISCOVERY' | 'STREAK' | 'ADJUSTMENT'
+  | 'CHECK_IN'
+  | 'SPIN'
+  | 'BIRTHDAY'
+  | 'EXPIRATION'
+export type StatusMovementType = 'PURCHASE' | 'MISSION' | 'DISCOVERY' | 'STREAK' | 'ADJUSTMENT' | 'WELCOME' | 'CHECK_IN'
 export type RewardType = 'PERCENT_DISCOUNT' | 'AMOUNT_DISCOUNT' | 'FREE_PRODUCT'
 export type RewardStatus = 'DRAFT' | 'ACTIVE' | 'INACTIVE'
 export type RedemptionStatus = 'PENDING' | 'REDEEMED' | 'EXPIRED' | 'CANCELLED'
+export type RedemptionOrigin = 'POINTS' | 'PRIZE' | 'BIRTHDAY'
 export type MissionType =
   | 'BUY_DISTINCT_BUSINESSES'
   | 'BUY_CATEGORY'
@@ -38,6 +43,7 @@ export type MissionType =
 export type MissionStatus = 'DRAFT' | 'ACTIVE' | 'INACTIVE'
 export type PromotionType = 'POINTS_MULTIPLIER' | 'FIXED_POINTS'
 export type PromotionStatus = 'DRAFT' | 'ACTIVE' | 'INACTIVE'
+export type PromotionOrigin = 'MANUAL' | 'REACTIVATION' | 'ANNIVERSARY' | 'VISIT_CARD' | 'PRIZE'
 export type EventStatus = 'DRAFT' | 'ACTIVE' | 'INACTIVE'
 export type BadgeType =
   | 'TIER_REACHED'
@@ -52,8 +58,14 @@ export type FraudAlertType =
   | 'REUSED_REDEMPTION'
   | 'HIGH_FREQUENCY'
   | 'ABNORMAL_AMOUNT'
+  | 'CHECK_IN_ONLY'
 export type FraudAlertStatus = 'OPEN' | 'RESOLVED' | 'DISMISSED'
 export type CancellationRequestStatus = 'PENDING' | 'APPROVED' | 'REJECTED'
+export type SpaceStatus = 'ACTIVE' | 'INACTIVE'
+export type SpinSource = 'DAILY' | 'EXTRA' | 'FREE'
+export type SpinPrizeType = 'POINTS' | 'MULTIPLIER' | 'REWARD' | 'EXTRA_SPIN'
+export type SpinPrizeStatus = 'ACTIVE' | 'INACTIVE'
+export type KycStatus = 'PENDING' | 'APPROVED' | 'REJECTED'
 
 export interface User {
   id: number
@@ -61,6 +73,7 @@ export interface User {
   firstName: string
   lastName: string
   phone: string | null
+  /** `YYYY-MM-DD`, only set once the admin approves the customer's verification (KycRequest). */
   birthDate: string | null
   role: UserRole
   status: UserStatus
@@ -182,6 +195,8 @@ export interface PointMovement {
   missionId: number | null
   promotionId: number | null
   eventId: number | null
+  checkInId: number | null
+  spinId: number | null
   type: PointMovementType
   amount: number
   createdAt: string
@@ -192,6 +207,7 @@ export interface StatusMovement {
   userId: number
   transactionId: number | null
   missionId: number | null
+  checkInId: number | null
   type: StatusMovementType
   amount: number
   createdAt: string
@@ -226,6 +242,9 @@ export interface Redemption {
   pointsSpent: number
   verificationToken: string
   status: RedemptionStatus
+  /** POINTS: code valid for minutes. PRIZE (ruleta) and BIRTHDAY are free and valid until `expiresAt`. */
+  origin: RedemptionOrigin
+  expiresAt: string | null
   createdAt: string
   redeemedAt: string | null
 }
@@ -238,6 +257,8 @@ export interface Mission {
   goal: number
   rewardPoints: number
   rewardStatus: number
+  /** Free ruleta spins granted on completion. */
+  rewardSpins: number
   startsAt: string
   endsAt: string
   status: MissionStatus
@@ -276,6 +297,11 @@ export interface Promotion {
   startsAt: string
   endsAt: string
   status: PromotionStatus
+  /** null = for every customer; set = personal promotion created automatically for that customer. */
+  userId: number | null
+  origin: PromotionOrigin
+  /** Applies to a single purchase (cupón de regreso, ruleta prize). */
+  singleUse: boolean
   createdById: number
   deletedAt: string | null
 }
@@ -330,6 +356,7 @@ export interface FraudAlert {
   id: number
   transactionId: number | null
   redemptionId: number | null
+  checkInId: number | null
   type: FraudAlertType
   riskScore: number
   status: FraudAlertStatus
@@ -349,6 +376,94 @@ export interface SystemSetting {
   key: string
   value: string
   updatedAt: string
+}
+
+/** Place of the Paseo with a fixed QR (`code`, hidden from non-admin snapshots). */
+export interface Space {
+  id: number
+  name: string
+  description: string | null
+  location: string | null
+  code: string
+  pointsReward: number
+  statusReward: number
+  status: SpaceStatus
+  createdById: number
+  createdAt: string
+  deletedAt: string | null
+}
+
+export interface SpaceCheckIn {
+  id: number
+  spaceId: number
+  userId: number
+  /** Bolivian calendar day `YYYY-MM-DD`. */
+  day: string
+  createdAt: string
+}
+
+export interface SpinPrize {
+  id: number
+  type: SpinPrizeType
+  points: number | null
+  multiplier: number | null
+  rewardId: number | null
+  validDays: number
+  weight: number
+  stock: number | null
+  status: SpinPrizeStatus
+  createdById: number
+  deletedAt: string | null
+}
+
+export interface Spin {
+  id: number
+  userId: number
+  source: SpinSource
+  cost: number
+  prizeId: number
+  prizeType: SpinPrizeType
+  points: number
+  promotionId: number | null
+  redemptionId: number | null
+  unlockTransactionId: number | null
+  createdAt: string
+}
+
+/** The ID photo lives apart (KycDocument) and never travels in the snapshot. */
+export interface KycRequest {
+  id: number
+  userId: number
+  /** `YYYY-MM-DD` */
+  birthDate: string
+  status: KycStatus
+  reviewedById: number | null
+  reviewNote: string | null
+  createdAt: string
+  reviewedAt: string | null
+}
+
+export interface BirthdayPerk {
+  businessId: number
+  type: RewardType
+  discountPercent: number | null
+  discountAmount: number | null
+  catalogItemId: number | null
+  quantity: number
+  description: string | null
+  isActive: boolean
+  updatedAt: string
+}
+
+export interface BirthdayClaim {
+  id: number
+  userId: number
+  businessId: number
+  year: number
+  transactionId: number
+  validatedById: number
+  perkTitle: string
+  createdAt: string
 }
 
 export interface Database {
@@ -379,6 +494,13 @@ export interface Database {
   events: PaseoEvent[]
   eventAttendances: EventAttendance[]
   badges: Badge[]
+  spaces: Space[]
+  spaceCheckIns: SpaceCheckIn[]
+  spinPrizes: SpinPrize[]
+  spins: Spin[]
+  kycRequests: KycRequest[]
+  birthdayPerks: BirthdayPerk[]
+  birthdayClaims: BirthdayClaim[]
   fraudAlerts: FraudAlert[]
   auditLogs: AuditLog[]
   systemSettings: SystemSetting[]

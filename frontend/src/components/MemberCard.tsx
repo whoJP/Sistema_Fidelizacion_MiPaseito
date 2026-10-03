@@ -84,6 +84,7 @@ export function MemberCard({
   points,
   revealed,
   onToggle,
+  locked = false,
 }: {
   ref?: Ref<HTMLDivElement>
   user: User
@@ -91,6 +92,8 @@ export function MemberCard({
   points: number
   revealed: boolean
   onToggle: () => void
+  /** Stays on the side it is showing, without the flip button (e.g. QR shown while redeeming). */
+  locked?: boolean
 }) {
   // The back stays mounted until the flip finishes so the QR doesn't vanish mid-turn.
   const [backLive, setBackLive] = useState(false)
@@ -123,6 +126,7 @@ export function MemberCard({
   }
   const cardRef = useRef<HTMLDivElement>(null)
   const toggle = () => {
+    if (locked) return
     onToggle()
     if (prefersReducedMotion()) return
     cardRef.current?.animate([{ transform: 'scale(1)' }, { transform: 'scale(0.93)', offset: 0.4 }, { transform: 'scale(1)' }], {
@@ -185,12 +189,14 @@ export function MemberCard({
         </div>
       </div>
 
-      <button type="button" className="mcard-toggle" aria-pressed={revealed} onClick={toggle}>
-        <span className="mcard-toggle-icon" aria-hidden>
-          {revealed ? <EyeOff size={16} /> : <QrCode size={16} />}
-        </span>
-        {revealed ? 'Ocultar mi código' : 'Mostrar mi código QR'}
-      </button>
+      {!locked && (
+        <button type="button" className="mcard-toggle" aria-pressed={revealed} onClick={toggle}>
+          <span className="mcard-toggle-icon" aria-hidden>
+            {revealed ? <EyeOff size={16} /> : <QrCode size={16} />}
+          </span>
+          {revealed ? 'Ocultar mi código' : 'Mostrar mi código QR'}
+        </button>
+      )}
     </div>
   )
 }

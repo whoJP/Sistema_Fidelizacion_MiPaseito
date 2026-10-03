@@ -3,6 +3,7 @@ import { Check, X } from 'lucide-react'
 import { useDb } from '../../data/store'
 import { cancellationImpact, cancellationNotice } from '../../data/actions'
 import { pointsBalance, purchaseLines, statusTotal } from '../../domain/loyalty'
+import { LIMITS } from '../../domain/validation'
 import { formatDateTime, formatInt, formatMoney, fullName } from '../../lib/format'
 import type { CancellationRequest, Database } from '../../types/domain'
 import { Badge, Card, Empty, Field, Modal, PageHeader, run } from '../../components/ui'
@@ -62,8 +63,8 @@ function DecisionModal({ request, decision, onClose }: Decision & { onClose: () 
               La compra #{tx.id} se anula y se le descuentan los puntos a <b>{customer && fullName(customer)}</b>. Escribe el motivo que verá el cliente;
               el resto del aviso se arma solo.
             </p>
-            <Field label="Motivo para el cliente" hint={`${note.trim().length}/300 · completa la frase después de "Motivo:"`}>
-              <textarea rows={2} maxLength={300} value={note} onChange={(e) => setNote(e.target.value)} autoFocus />
+            <Field label="Motivo para el cliente" hint={`${note.trim().length}/${LIMITS.note} · completa la frase después de "Motivo:"`}>
+              <textarea rows={2} maxLength={LIMITS.note} value={note} onChange={(e) => setNote(e.target.value)} autoFocus />
             </Field>
             <div className="chips" aria-label="Motivos frecuentes">
               {REASON_EXAMPLES.map((r) => (
@@ -90,8 +91,8 @@ function DecisionModal({ request, decision, onClose }: Decision & { onClose: () 
               La compra se mantiene. {requester?.firstName ?? 'El encargado'} verá tu respuesta en Movimientos y no podrá volver a solicitar la anulación de esta
               compra.
             </p>
-            <Field label="Explicación para el encargado (opcional)" hint={`${note.trim().length}/300`}>
-              <textarea rows={3} maxLength={300} value={note} onChange={(e) => setNote(e.target.value)} autoFocus />
+            <Field label="Explicación para el encargado (opcional)" hint={`${note.trim().length}/${LIMITS.note}`}>
+              <textarea rows={3} maxLength={LIMITS.note} value={note} onChange={(e) => setNote(e.target.value)} autoFocus />
             </Field>
           </>
         )}

@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom'
-import { Stamp } from 'lucide-react'
+import { Sparkles, Stamp } from 'lucide-react'
 import { useDb } from '../../data/store'
 import { businessCategoryIds, discoveredBusinessIds, passportProgress } from '../../domain/loyalty'
 import { formatDate } from '../../lib/format'
@@ -48,6 +48,13 @@ export function PassportPage() {
 
       <h2 className="section-title">Sellos</h2>
       <div className="stamps">
+        <div className="stamp stamp-on stamp-welcome">
+          <span className="stamp-seal" aria-hidden>
+            <Sparkles size={22} />
+          </span>
+          <strong>Bienvenida al Paseo</strong>
+          <span className="small">{formatDate(user.createdAt)}</span>
+        </div>
         {businesses.map((b) => {
           const found = discoveries.find((d) => d.businessId === b.id)
           return (

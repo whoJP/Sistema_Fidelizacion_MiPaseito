@@ -53,6 +53,13 @@ export function viewFor(db: Database, viewerId: number): Database {
       r.status === 'PENDING' && r.userId !== viewerId ? { ...r, verificationToken: '' } : r,
     ),
     eventAttendances: db.eventAttendances.filter((a) => a.userId === viewerId),
+    promotions: db.promotions.filter((p) => p.userId === null || p.userId === viewerId),
+    // The QR code of a space is what proves the visit: only the admin (who prints it) sees it.
+    spaces: db.spaces.map((s) => ({ ...s, code: '' })),
+    spaceCheckIns: db.spaceCheckIns.filter((c) => c.userId === viewerId),
+    spins: db.spins.filter((s) => s.userId === viewerId),
+    kycRequests: db.kycRequests.filter((r) => r.userId === viewerId),
+    birthdayClaims: db.birthdayClaims.filter((c) => c.userId === viewerId || (businessId !== undefined && c.businessId === businessId)),
     fraudAlerts: [],
     auditLogs: [],
   }

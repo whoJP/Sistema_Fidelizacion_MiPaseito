@@ -8,6 +8,7 @@ import type { Database, Reward, RewardStatus, RewardType } from '../../types/dom
 import { Card, Empty, Field, Modal, PageHeader, run, vanish } from '../../components/ui'
 import { confirmDialog } from '../../components/dialog'
 import { WindowFields, draftWindowError } from '../../components/WindowFields'
+import { LIMITS, MAX_POINTS, MAX_STOCK, moneyError } from '../../domain/validation'
 import { FormActions, StatusBadge } from '../admin/shared'
 import { useWorkplace } from './useWorkplace'
 
@@ -90,6 +91,15 @@ export function MerchantRewardsPage() {
   const products = db.catalogItems.filter((i) => i.businessId === business.id && i.deletedAt === null)
   const editing = (draft?.id && db.rewards.find((r) => r.id === draft.id)) || null
   const windowProblem = draft && draftWindowError(draft, editing, false)
+  const discount = draft ? numOrNull(draft.discountAmount) : null
+  const minimum = draft ? numOrNull(draft.minimumPurchase) : null
+  const discountProblem = draft?.type === 'AMOUNT_DISCOUNT' && discount !== null ? moneyError(discount, 'El descuento', { minExclusive: true }) : null
+  const minimumProblem =
+    draft && draft.type !== 'FREE_PRODUCT' && minimum !== null
+      ? (moneyError(minimum, 'La compra mínima') ??
+        (draft.type === 'AMOUNT_DISCOUNT' && discount !== null && minimum > 0 && discount >= minimum ? 'Debe ser mayor que el descuento' : null))
+      : null
+  const usedStock = editing ? rewardRedeemedCount(db, editing.id) : 0
 
   const remove = async (r: Reward, row: HTMLElement) => {
     const ok = await confirmDialog({
@@ -103,7 +113,7 @@ export function MerchantRewardsPage() {
 
   const save = async (e: FormEvent) => {
     e.preventDefault()
-    if (!draft || windowProblem) return
+    if (!draft || windowProblem || discountProblem || minimumProblem) return
     const ok = await run(
       'saveReward',
       {
@@ -235,18 +245,24 @@ export function MerchantRewardsPage() {
                 <Field label="Porcentaje de descuento (%)">
                   <input type="number" min={1} max={100} step={1} required value={draft.discountPercent} onChange={(e) => setDraft({ ...draft, discountPercent: e.target.value })} />
                 </Field>
-                <Field label="Compra mínima en Bs (opcional)" hint="Vacío = sin mínimo">
-                  <input inputMode="decimal" value={draft.minimumPurchase} onChange={(e) => setDraft({ ...draft, minimumPurchase: e.target.value })} />
+                <Field label="Compra mínima en Bs (opcional)" hint="Vacío = sin mínimo" error={minimumProblem}>
+                  <input inputMode="decimal" maxLength={14} value={draft.minimumPurchase} onChange={(e) => setDraft({ ...draft, minimumPurchase: e.target.value })} />
                 </Field>
               </div>
             )}
             {draft.type === 'AMOUNT_DISCOUNT' && (
               <div className="grid-2">
-                <Field label="Descuento en Bs">
-                  <input inputMode="decimal" required value={draft.discountAmount} onChange={(e) => setDraft({ ...draft, discountAmount: e.target.value })} />
+                <Field label="Descuento en Bs" error={discountProblem}>
+                  <input
+                    inputMode="decimal"
+                    required
+                    maxLength={14}
+                    value={draft.discountAmount}
+                    onChange={(e) => setDraft({ ...draft, discountAmount: e.target.value })}
+                  />
                 </Field>
-                <Field label="Compra mínima en Bs (opcional)" hint="Vacío = sin mínimo">
-                  <input inputMode="decimal" value={draft.minimumPurchase} onChange={(e) => setDraft({ ...draft, minimumPurchase: e.target.value })} />
+                <Field label="Compra mínima en Bs (opcional)" hint="Vacío = sin mínimo" error={minimumProblem}>
+                  <input inputMode="decimal" maxLength={14} value={draft.minimumPurchase} onChange={(e) => setDraft({ ...draft, minimumPurchase: e.target.value })} />
                 </Field>
               </div>
             )}
@@ -283,7 +299,15 @@ export function MerchantRewardsPage() {
 
             <div className="grid-3">
               <Field label="Costo en puntos">
-                <input type="number" min={1} step={1} required value={draft.pointsCost} onChange={(e) => setDraft({ ...draft, pointsCost: e.target.value })} />
+                <input
+                  type="number"
+                  min={1}
+                  max={MAX_POINTS}
+                  step={1}
+                  required
+                  value={draft.pointsCost}
+                  onChange={(e) => setDraft({ ...draft, pointsCost: e.target.value })}
+                />
               </Field>
               <Field label="Nivel mínimo del cliente">
                 <select value={draft.minimumTierId ?? ''} onChange={(e) => setDraft({ ...draft, minimumTierId: e.target.value ? Number(e.target.value) : null })}>
@@ -298,8 +322,8 @@ export function MerchantRewardsPage() {
                     ))}
                 </select>
               </Field>
-              <Field label="Cantidad disponible" hint="Vacío = sin límite">
-                <input type="number" min={0} step={1} value={draft.stock} onChange={(e) => setDraft({ ...draft, stock: e.target.value })} />
+              <Field label="Cantidad disponible" hint={usedStock > 0 ? `Vacío = sin límite. Ya se canjearon ${formatInt(usedStock)}` : 'Vacío = sin límite'}>
+                <input type="number" min={usedStock} max={MAX_STOCK} step={1} value={draft.stock} onChange={(e) => setDraft({ ...draft, stock: e.target.value })} />
               </Field>
             </div>
             <WindowFields
@@ -312,7 +336,7 @@ export function MerchantRewardsPage() {
             />
             <div className="stack-sm">
               <Field label="Condiciones adicionales (opcional)" hint="El beneficio ya queda definido arriba. Toca un ejemplo para agregarlo.">
-                <textarea rows={2} maxLength={500} value={draft.description} onChange={(e) => setDraft({ ...draft, description: e.target.value })} />
+                <textarea rows={2} maxLength={LIMITS.description} value={draft.description} onChange={(e) => setDraft({ ...draft, description: e.target.value })} />
               </Field>
               <div className="chips" aria-label="Condiciones frecuentes">
                 {CONDITION_EXAMPLES.map((c) => {
@@ -331,7 +355,7 @@ export function MerchantRewardsPage() {
                 })}
               </div>
             </div>
-            <FormActions onCancel={() => setDraft(null)} disabled={!!windowProblem} />
+            <FormActions onCancel={() => setDraft(null)} disabled={!!(windowProblem || discountProblem || minimumProblem)} />
           </form>
         </Modal>
       )}

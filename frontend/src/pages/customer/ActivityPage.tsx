@@ -1,9 +1,12 @@
 import { useState } from 'react'
+import { CalendarClock } from 'lucide-react'
 import { useDb } from '../../data/store'
-import { pointsBalance, purchaseLines, rewardTitle, statusTotal } from '../../domain/loyalty'
+import { pointsExpiry, prizeTitle } from '../../domain/engagement'
+import { getSetting, pointsBalance, purchaseLines, rewardTitle, statusTotal } from '../../domain/loyalty'
 import {
   POINT_MOVEMENT_LABELS,
   STATUS_MOVEMENT_LABELS,
+  formatDateKey,
   formatDateTime,
   formatInt,
   formatMoney,
@@ -17,8 +20,27 @@ type Tab = 'points' | 'status' | 'purchases' | 'notices'
 
 function movementDetail(
   db: Database,
-  m: { transactionId: number | null; missionId: number | null; redemptionId?: number | null; promotionId?: number | null; eventId?: number | null },
+  m: {
+    transactionId: number | null
+    missionId: number | null
+    redemptionId?: number | null
+    promotionId?: number | null
+    eventId?: number | null
+    checkInId?: number | null
+    spinId?: number | null
+    amount?: number
+  },
 ) {
+  if (m.checkInId) {
+    const checkIn = db.spaceCheckIns.find((c) => c.id === m.checkInId)
+    return db.spaces.find((s) => s.id === checkIn?.spaceId)?.name
+  }
+  if (m.spinId) {
+    if ((m.amount ?? 0) < 0) return 'Giro del día'
+    const spin = db.spins.find((s) => s.id === m.spinId)
+    const prize = db.spinPrizes.find((p) => p.id === spin?.prizeId)
+    return prize && prizeTitle(db, prize)
+  }
   if (m.promotionId) return db.promotions.find((p) => p.id === m.promotionId)?.name
   if (m.missionId) return db.missions.find((x) => x.id === m.missionId)?.name
   if (m.eventId) return db.events.find((x) => x.id === m.eventId)?.name
@@ -44,6 +66,7 @@ export function ActivityPage() {
   const status = db.statusMovements.filter((m) => m.userId === user.id).sort((a, b) => b.id - a.id)
   const purchases = db.transactions.filter((t) => t.customerId === user.id).sort((a, b) => b.id - a.id)
   const notices = db.notifications.filter((n) => n.userId === user.id).sort((a, b) => b.id - a.id)
+  const expiry = pointsExpiry(db, user)
   const lines = (transactionId: number) =>
     purchaseLines(db, transactionId)
       .map((l) => `${formatInt(l.quantity)} × ${l.name}`)
@@ -73,6 +96,17 @@ export function ActivityPage() {
           </button>
         ))}
       </div>
+
+      {tab === 'points' && expiry.balance > 0 && (
+        <div className={`expiry ${expiry.soon ? 'is-soon' : ''}`}>
+          <CalendarClock size={18} aria-hidden />
+          <p>
+            Tus {formatInt(expiry.balance)} puntos vencen el <b>{formatDateKey(expiry.expiresOn)}</b>
+            {expiry.soon && <> ({expiry.daysLeft <= 0 ? 'hoy' : expiry.daysLeft === 1 ? 'mañana' : `en ${formatInt(expiry.daysLeft)} días`})</>}. Cada
+            compra o visita a un espacio del Paseo renueva el plazo por {formatInt(getSetting(db, 'POINTS_EXPIRATION_MONTHS'))} meses.
+          </p>
+        </div>
+      )}
 
       <Card>
         {tab === 'points' &&

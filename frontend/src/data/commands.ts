@@ -2,7 +2,19 @@
 // authenticated user as `actor`; the frontend only imports the types and calls them through `run()`.
 import * as A from './actions'
 import { SETTING_DEFAULTS } from '../domain/loyalty'
-import type { BadgeType, BusinessMemberRole, CancellationRequestStatus, Database, DayOfWeek, FraudAlertStatus, UserStatus } from '../types/domain'
+import { MAX_SCOPE_ITEMS, isCalendarDate } from '../domain/validation'
+import type {
+  BadgeType,
+  BusinessMemberRole,
+  CancellationRequestStatus,
+  Database,
+  DayOfWeek,
+  FraudAlertStatus,
+  KycStatus,
+  RewardType,
+  SpinSource,
+  UserStatus,
+} from '../types/domain'
 
 export interface Actor {
   id: number
@@ -10,22 +22,52 @@ export interface Actor {
 
 const { DomainError } = A
 
+/** Largest value of a MySQL INT primary key. */
+const MAX_ID = 2_147_483_647
+/** Hard cap for any text field; each field has its own, smaller limit in the domain rules. */
+const MAX_TEXT = 5_000
+const MAX_NUMBER = 1e12
+
 const id = (value: unknown, label = 'Identificador'): number => {
-  if (typeof value !== 'number' || !Number.isInteger(value) || value <= 0) throw new DomainError(`${label} inválido`)
+  if (typeof value !== 'number' || !Number.isInteger(value) || value <= 0 || value > MAX_ID) throw new DomainError(`${label} inválido`)
   return value
 }
-const optionalId = (value: unknown) => (value === null || value === undefined ? null : id(value))
+const optionalId = (value: unknown, label?: string) => (value === null || value === undefined ? null : id(value, label))
 const num = (value: unknown, label: string): number => {
   if (typeof value !== 'number' || !Number.isFinite(value)) throw new DomainError(`${label} inválido`)
+  if (Math.abs(value) > MAX_NUMBER) throw new DomainError(`${label} fuera de rango`)
   return value
 }
-const int = (value: unknown, label: string) => Math.trunc(num(value, label))
-const str = (value: unknown) => (typeof value === 'string' ? value : '')
-const optionalStr = (value: unknown) => (typeof value === 'string' && value.trim() ? value.trim() : null)
+const int = (value: unknown, label: string) => {
+  const n = num(value, label)
+  if (!Number.isInteger(n)) throw new DomainError(`${label} debe ser un número entero`)
+  return n
+}
+const str = (value: unknown, label = 'Texto') => {
+  if (value === null || value === undefined) return ''
+  if (typeof value !== 'string') throw new DomainError(`${label} inválido`)
+  if (value.length > MAX_TEXT) throw new DomainError(`${label} demasiado largo`)
+  return value
+}
+const optionalStr = (value: unknown, label?: string) => str(value, label).trim() || null
+/** Nested `data` object of save commands. */
+const data = <T extends object>(input: { data: T }): T => {
+  const value: unknown = input?.data
+  if (!value || typeof value !== 'object' || Array.isArray(value)) throw new DomainError('Datos inválidos')
+  return value as T
+}
+const list = (value: unknown, label: string): unknown[] => {
+  if (value === null || value === undefined) return []
+  if (!Array.isArray(value)) throw new DomainError(`${label} inválida`)
+  return value
+}
 const optionalDate = (value: unknown) => {
   if (value === null || value === undefined || value === '') return null
-  if (typeof value !== 'string' || Number.isNaN(Date.parse(value))) throw new DomainError('Fecha inválida')
-  return new Date(value).toISOString()
+  if (typeof value !== 'string' || value.length > 40 || Number.isNaN(Date.parse(value))) throw new DomainError('Fecha inválida')
+  const parsed = new Date(value)
+  const year = parsed.getUTCFullYear()
+  if (year < 2000 || year > 2100) throw new DomainError('Fecha fuera de rango')
+  return parsed.toISOString()
 }
 const date = (value: unknown) => {
   const parsed = optionalDate(value)
@@ -36,10 +78,14 @@ const oneOf = <T extends string>(value: unknown, allowed: readonly T[], label: s
   if (!allowed.includes(value as T)) throw new DomainError(`${label} inválido`)
   return value as T
 }
-const ids = (value: unknown) => (Array.isArray(value) ? value.map((v) => id(v)) : [])
+const ids = (value: unknown, label = 'Lista') => {
+  const values = list(value, label)
+  if (values.length > MAX_SCOPE_ITEMS) throw new DomainError(`${label} demasiado larga`)
+  return [...new Set(values.map((v) => id(v)))]
+}
 const scope = (value: unknown) => {
   const s = (value ?? {}) as { businessIds?: unknown; categoryIds?: unknown }
-  return { businessIds: ids(s.businessIds), categoryIds: ids(s.categoryIds) }
+  return { businessIds: ids(s.businessIds, 'Lista de establecimientos'), categoryIds: ids(s.categoryIds, 'Lista de categorías') }
 }
 const time = (value: unknown) => {
   if (value === null || value === undefined || value === '') return null
@@ -48,18 +94,28 @@ const time = (value: unknown) => {
 }
 
 const optionalNum = (value: unknown, label: string) => (value === null || value === undefined || value === '' ? null : num(value, label))
-const optionalInt = (value: unknown, label: string) => {
-  const n = optionalNum(value, label)
-  return n === null ? null : Math.trunc(n)
-}
+const optionalInt = (value: unknown, label: string) => (value === null || value === undefined || value === '' ? null : int(value, label))
 const dateKey = (value: unknown) => {
   if (value === null || value === undefined || value === '') return null
-  if (typeof value !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(value)) throw new DomainError('Fecha inválida')
+  if (typeof value !== 'string' || !isCalendarDate(value)) throw new DomainError('Fecha inválida')
   return value
 }
 
 const DAYS: DayOfWeek[] = ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY', 'SUNDAY']
-const SOFT_DELETABLE: A.SoftDeletable[] = ['businesses', 'categories', 'rewards', 'missions', 'promotions', 'catalogItems', 'users', 'events', 'badges']
+const SOFT_DELETABLE: A.SoftDeletable[] = [
+  'businesses',
+  'categories',
+  'rewards',
+  'missions',
+  'promotions',
+  'catalogItems',
+  'users',
+  'events',
+  'badges',
+  'spaces',
+  'spinPrizes',
+]
+const REWARD_TYPES: RewardType[] = ['PERCENT_DISCOUNT', 'AMOUNT_DISCOUNT', 'FREE_PRODUCT']
 const BADGE_TYPES: BadgeType[] = ['TIER_REACHED', 'PURCHASE_COUNT', 'CATEGORY_PURCHASES', 'DISTINCT_BUSINESSES', 'MISSIONS_COMPLETED', 'SPECIAL_DATE']
 
 type BusinessData = Parameters<typeof A.saveBusiness>[2]
@@ -72,6 +128,9 @@ type PromotionData = Parameters<typeof A.savePromotion>[2]
 type CatalogItemData = Parameters<typeof A.saveCatalogItem>[2]
 type EventData = Parameters<typeof A.saveEvent>[2]
 type BadgeData = Parameters<typeof A.saveBadge>[2]
+type SpaceData = Parameters<typeof A.saveSpace>[2]
+type PrizeData = Parameters<typeof A.savePrize>[2]
+type BirthdayPerkData = Parameters<typeof A.saveBirthdayPerk>[2]
 type Scope = { businessIds: number[]; categoryIds: number[] }
 
 export const commands = {
@@ -80,10 +139,10 @@ export const commands = {
     A.registerPurchase(db, {
       customerId: id(input.customerId, 'Cliente'),
       businessId: id(input.businessId, 'Establecimiento'),
-      items: (Array.isArray(input.items) ? input.items : []).map((line) => ({
-        catalogItemId: id(line?.catalogItemId, 'Producto'),
-        quantity: int(line?.quantity, 'Cantidad'),
-      })),
+      items: list(input.items, 'Lista de productos').map((value) => {
+        const line = value as Partial<A.PurchaseLine> | null
+        return { catalogItemId: id(line?.catalogItemId, 'Producto'), quantity: int(line?.quantity, 'Cantidad') }
+      }),
       performedById: actor.id,
     }),
 
@@ -98,18 +157,39 @@ export const commands = {
   },
 
   validateRedemption: (db: Database, actor: Actor, input: { token: string; businessId: number }) =>
-    A.validateRedemption(db, { token: str(input.token), businessId: id(input.businessId, 'Establecimiento'), staffId: actor.id }),
+    A.validateRedemption(db, { token: str(input.token, 'Código de canje'), businessId: id(input.businessId, 'Establecimiento'), staffId: actor.id }),
+
+  claimBirthdayPerk: (db: Database, actor: Actor, input: { customerId: number; businessId: number }) =>
+    A.claimBirthdayPerk(db, { customerId: id(input.customerId, 'Cliente'), businessId: id(input.businessId, 'Establecimiento'), staffId: actor.id }),
+
+  saveBirthdayPerk: (db: Database, actor: Actor, input: { businessId: number; data: BirthdayPerkData }) => {
+    A.saveBirthdayPerk(
+      db,
+      id(input.businessId, 'Establecimiento'),
+      {
+        type: oneOf(data(input).type, REWARD_TYPES, 'Tipo de regalo'),
+        discountPercent: optionalInt(data(input).discountPercent, 'Porcentaje'),
+        discountAmount: optionalNum(data(input).discountAmount, 'Descuento'),
+        catalogItemId: optionalId(data(input).catalogItemId),
+        quantity: optionalInt(data(input).quantity, 'Cantidad') ?? 1,
+        description: optionalStr(data(input).description),
+        isActive: data(input).isActive !== false,
+      },
+      actor.id,
+    )
+    return true
+  },
 
   saveCatalogItem: (db: Database, actor: Actor, input: { id: number | null; data: CatalogItemData }) =>
     A.saveCatalogItem(
       db,
       optionalId(input.id),
       {
-        businessId: id(input.data.businessId, 'Establecimiento'),
-        name: str(input.data.name),
-        description: optionalStr(input.data.description),
-        price: num(input.data.price, 'Precio'),
-        isAvailable: input.data.isAvailable !== false,
+        businessId: id(data(input).businessId, 'Establecimiento'),
+        name: str(data(input).name),
+        description: optionalStr(data(input).description),
+        price: num(data(input).price, 'Precio'),
+        isAvailable: data(input).isAvailable !== false,
       },
       actor.id,
     ),
@@ -119,20 +199,20 @@ export const commands = {
       db,
       optionalId(input.id),
       {
-        businessId: id(input.data.businessId, 'Establecimiento'),
-        type: oneOf(input.data.type, ['PERCENT_DISCOUNT', 'AMOUNT_DISCOUNT', 'FREE_PRODUCT'] as const, 'Tipo de recompensa'),
-        discountPercent: optionalInt(input.data.discountPercent, 'Porcentaje'),
-        discountAmount: optionalNum(input.data.discountAmount, 'Descuento'),
-        catalogItemId: optionalId(input.data.catalogItemId),
-        quantity: optionalInt(input.data.quantity, 'Cantidad') ?? 1,
-        minimumPurchase: optionalNum(input.data.minimumPurchase, 'Compra mínima'),
-        description: optionalStr(input.data.description),
-        pointsCost: int(input.data.pointsCost, 'Costo'),
-        minimumTierId: optionalId(input.data.minimumTierId),
-        stock: optionalInt(input.data.stock, 'Cantidad disponible'),
-        startsAt: optionalDate(input.data.startsAt),
-        endsAt: optionalDate(input.data.endsAt),
-        status: oneOf(input.data.status, ['DRAFT', 'ACTIVE', 'INACTIVE'] as const, 'Estado'),
+        businessId: id(data(input).businessId, 'Establecimiento'),
+        type: oneOf(data(input).type, REWARD_TYPES, 'Tipo de recompensa'),
+        discountPercent: optionalInt(data(input).discountPercent, 'Porcentaje'),
+        discountAmount: optionalNum(data(input).discountAmount, 'Descuento'),
+        catalogItemId: optionalId(data(input).catalogItemId),
+        quantity: optionalInt(data(input).quantity, 'Cantidad') ?? 1,
+        minimumPurchase: optionalNum(data(input).minimumPurchase, 'Compra mínima'),
+        description: optionalStr(data(input).description),
+        pointsCost: int(data(input).pointsCost, 'Costo'),
+        minimumTierId: optionalId(data(input).minimumTierId),
+        stock: optionalInt(data(input).stock, 'Cantidad disponible'),
+        startsAt: optionalDate(data(input).startsAt),
+        endsAt: optionalDate(data(input).endsAt),
+        status: oneOf(data(input).status, ['DRAFT', 'ACTIVE', 'INACTIVE'] as const, 'Estado'),
       },
       actor.id,
     ),
@@ -151,18 +231,27 @@ export const commands = {
     return true
   },
 
+  checkInSpace: (db: Database, actor: Actor, input: { code: string }) => A.checkInSpace(db, actor.id, str(input.code)),
+
+  spinWheel: (db: Database, actor: Actor, input: { source: SpinSource }) =>
+    A.spinWheel(db, actor.id, oneOf(input.source, ['DAILY', 'EXTRA', 'FREE'] as const, 'Tipo de giro')),
+
+  claimBirthdayReward: (db: Database, actor: Actor, input: { rewardId: number }) => {
+    A.claimBirthdayReward(db, actor.id, id(input.rewardId, 'Recompensa'))
+    return true
+  },
+
   // ---------- Any signed-in user ----------
   updateProfile: (
     db: Database,
     actor: Actor,
-    input: { firstName: string; lastName: string; email: string; phone: string | null; birthDate: string | null },
+    input: { firstName: string; lastName: string; email: string; phone: string | null },
   ) => {
     A.updateProfile(db, actor.id, {
       firstName: str(input.firstName),
       lastName: str(input.lastName),
       email: str(input.email),
       phone: optionalStr(input.phone),
-      birthDate: dateKey(input.birthDate),
     })
     return true
   },
@@ -189,7 +278,7 @@ export const commands = {
   adjustBalance: (db: Database, actor: Actor, input: { userId: number; ledger: 'POINTS' | 'STATUS'; amount: number }) => {
     A.adjustBalance(
       db,
-      { userId: id(input.userId), ledger: oneOf(input.ledger, ['POINTS', 'STATUS'] as const, 'Tipo de puntos'), amount: num(input.amount, 'Cantidad') },
+      { userId: id(input.userId), ledger: oneOf(input.ledger, ['POINTS', 'STATUS'] as const, 'Tipo de puntos'), amount: int(input.amount, 'Cantidad') },
       actor.id,
     )
     return true
@@ -214,22 +303,26 @@ export const commands = {
       db,
       optionalId(input.id),
       {
-        name: str(input.data.name),
-        description: str(input.data.description),
-        logoUrl: optionalStr(input.data.logoUrl),
-        phone: optionalStr(input.data.phone),
-        floor: optionalStr(input.data.floor),
-        sector: optionalStr(input.data.sector),
-        localNumber: optionalStr(input.data.localNumber),
-        status: oneOf(input.data.status, ['ACTIVE', 'INACTIVE'] as const, 'Estado'),
+        name: str(data(input).name),
+        description: str(data(input).description),
+        logoUrl: optionalStr(data(input).logoUrl),
+        phone: optionalStr(data(input).phone),
+        floor: optionalStr(data(input).floor),
+        sector: optionalStr(data(input).sector),
+        localNumber: optionalStr(data(input).localNumber),
+        status: oneOf(data(input).status, ['ACTIVE', 'INACTIVE'] as const, 'Estado'),
       },
-      ids(input.categoryIds),
-      (Array.isArray(input.schedules) ? input.schedules : []).map((s) => ({
-        dayOfWeek: oneOf(s.dayOfWeek, DAYS, 'Día'),
-        isClosed: s.isClosed === true,
-        openTime: s.isClosed ? null : time(s.openTime),
-        closeTime: s.isClosed ? null : time(s.closeTime),
-      })),
+      ids(input.categoryIds, 'Lista de categorías'),
+      list(input.schedules, 'Lista de horarios').map((value) => {
+        const s = (value ?? {}) as Partial<ScheduleData>
+        const isClosed = s.isClosed === true
+        return {
+          dayOfWeek: oneOf(s.dayOfWeek, DAYS, 'Día'),
+          isClosed,
+          openTime: isClosed ? null : time(s.openTime),
+          closeTime: isClosed ? null : time(s.closeTime),
+        }
+      }),
       actor.id,
     ),
 
@@ -238,9 +331,9 @@ export const commands = {
       db,
       optionalId(input.id),
       {
-        name: str(input.data.name),
-        parentId: optionalId(input.data.parentId),
-        status: oneOf(input.data.status, ['ACTIVE', 'INACTIVE'] as const, 'Estado'),
+        name: str(data(input).name),
+        parentId: optionalId(data(input).parentId),
+        status: oneOf(data(input).status, ['ACTIVE', 'INACTIVE'] as const, 'Estado'),
       },
       actor.id,
     ),
@@ -250,11 +343,11 @@ export const commands = {
       db,
       optionalId(input.id),
       {
-        name: str(input.data.name),
-        minimumStatus: Math.max(0, int(input.data.minimumStatus, 'Puntos de nivel mínimos')),
-        pointsMultiplier: Math.round(num(input.data.pointsMultiplier, 'Multiplicador') * 100) / 100,
-        sortOrder: int(input.data.sortOrder, 'Orden'),
-        isActive: input.data.isActive !== false,
+        name: str(data(input).name),
+        minimumStatus: int(data(input).minimumStatus, 'Puntos de nivel mínimos'),
+        pointsMultiplier: num(data(input).pointsMultiplier, 'Multiplicador'),
+        sortOrder: int(data(input).sortOrder, 'Orden'),
+        isActive: data(input).isActive !== false,
       },
       actor.id,
     ),
@@ -264,13 +357,13 @@ export const commands = {
       db,
       optionalId(input.id),
       {
-        name: str(input.data.name),
-        description: optionalStr(input.data.description),
-        location: optionalStr(input.data.location),
-        startsAt: date(input.data.startsAt),
-        endsAt: date(input.data.endsAt),
-        pointsReward: Math.max(0, int(input.data.pointsReward, 'Puntos')),
-        status: oneOf(input.data.status, ['DRAFT', 'ACTIVE', 'INACTIVE'] as const, 'Estado'),
+        name: str(data(input).name),
+        description: optionalStr(data(input).description),
+        location: optionalStr(data(input).location),
+        startsAt: date(data(input).startsAt),
+        endsAt: date(data(input).endsAt),
+        pointsReward: int(data(input).pointsReward, 'Puntos'),
+        status: oneOf(data(input).status, ['DRAFT', 'ACTIVE', 'INACTIVE'] as const, 'Estado'),
       },
       actor.id,
     ),
@@ -283,14 +376,14 @@ export const commands = {
       db,
       optionalId(input.id),
       {
-        name: str(input.data.name),
-        description: optionalStr(input.data.description),
-        type: oneOf(input.data.type, BADGE_TYPES, 'Tipo de insignia'),
-        goal: optionalInt(input.data.goal, 'Cantidad'),
-        tierId: optionalId(input.data.tierId),
-        categoryId: optionalId(input.data.categoryId),
-        date: dateKey(input.data.date),
-        status: oneOf(input.data.status, ['ACTIVE', 'INACTIVE'] as const, 'Estado'),
+        name: str(data(input).name),
+        description: optionalStr(data(input).description),
+        type: oneOf(data(input).type, BADGE_TYPES, 'Tipo de insignia'),
+        goal: optionalInt(data(input).goal, 'Cantidad'),
+        tierId: optionalId(data(input).tierId),
+        categoryId: optionalId(data(input).categoryId),
+        date: dateKey(data(input).date),
+        status: oneOf(data(input).status, ['ACTIVE', 'INACTIVE'] as const, 'Estado'),
       },
       actor.id,
     ),
@@ -300,19 +393,20 @@ export const commands = {
       db,
       optionalId(input.id),
       {
-        name: str(input.data.name),
-        description: optionalStr(input.data.description),
+        name: str(data(input).name),
+        description: optionalStr(data(input).description),
         type: oneOf(
-          input.data.type,
+          data(input).type,
           ['BUY_DISTINCT_BUSINESSES', 'BUY_CATEGORY', 'BUY_DISTINCT_CATEGORIES', 'TOTAL_PURCHASE_AMOUNT', 'TRANSACTION_COUNT', 'WEEKLY_PURCHASE', 'DISCOVER_BUSINESS'] as const,
           'Tipo',
         ),
-        goal: int(input.data.goal, 'Objetivo'),
-        rewardPoints: Math.max(0, int(input.data.rewardPoints, 'Puntos de premio')),
-        rewardStatus: Math.max(0, int(input.data.rewardStatus, 'Puntos de nivel de premio')),
-        startsAt: date(input.data.startsAt),
-        endsAt: date(input.data.endsAt),
-        status: oneOf(input.data.status, ['DRAFT', 'ACTIVE', 'INACTIVE'] as const, 'Estado'),
+        goal: int(data(input).goal, 'Objetivo'),
+        rewardPoints: int(data(input).rewardPoints, 'Puntos de premio'),
+        rewardStatus: int(data(input).rewardStatus, 'Puntos de nivel de premio'),
+        rewardSpins: optionalInt(data(input).rewardSpins, 'Giros de premio') ?? 0,
+        startsAt: date(data(input).startsAt),
+        endsAt: date(data(input).endsAt),
+        status: oneOf(data(input).status, ['DRAFT', 'ACTIVE', 'INACTIVE'] as const, 'Estado'),
       },
       scope(input.scope),
       actor.id,
@@ -323,12 +417,12 @@ export const commands = {
       db,
       optionalId(input.id),
       {
-        name: str(input.data.name),
-        type: oneOf(input.data.type, ['POINTS_MULTIPLIER', 'FIXED_POINTS'] as const, 'Tipo'),
-        value: Math.round(num(input.data.value, 'Valor') * 100) / 100,
-        startsAt: date(input.data.startsAt),
-        endsAt: date(input.data.endsAt),
-        status: oneOf(input.data.status, ['DRAFT', 'ACTIVE', 'INACTIVE'] as const, 'Estado'),
+        name: str(data(input).name),
+        type: oneOf(data(input).type, ['POINTS_MULTIPLIER', 'FIXED_POINTS'] as const, 'Tipo'),
+        value: num(data(input).value, 'Valor'),
+        startsAt: date(data(input).startsAt),
+        endsAt: date(data(input).endsAt),
+        status: oneOf(data(input).status, ['DRAFT', 'ACTIVE', 'INACTIVE'] as const, 'Estado'),
       },
       scope(input.scope),
       actor.id,
@@ -348,9 +442,59 @@ export const commands = {
     return true
   },
 
+  reviewKyc: (db: Database, actor: Actor, input: { requestId: number; decision: Exclude<KycStatus, 'PENDING'>; note: string }) => {
+    A.reviewKyc(
+      db,
+      {
+        requestId: id(input.requestId, 'Solicitud'),
+        decision: oneOf(input.decision, ['APPROVED', 'REJECTED'] as const, 'Decisión'),
+        note: str(input.note),
+      },
+      actor.id,
+    )
+    return true
+  },
+
+  saveSpace: (db: Database, actor: Actor, input: { id: number | null; data: SpaceData }) =>
+    A.saveSpace(
+      db,
+      optionalId(input.id),
+      {
+        name: str(data(input).name),
+        description: optionalStr(data(input).description),
+        location: optionalStr(data(input).location),
+        pointsReward: int(data(input).pointsReward, 'Puntos'),
+        statusReward: int(data(input).statusReward, 'Puntos de nivel'),
+        status: oneOf(data(input).status, ['ACTIVE', 'INACTIVE'] as const, 'Estado'),
+      },
+      actor.id,
+    ),
+
+  regenerateSpaceCode: (db: Database, actor: Actor, input: { spaceId: number }) => {
+    A.regenerateSpaceCode(db, id(input.spaceId, 'Espacio'), actor.id)
+    return true
+  },
+
+  savePrize: (db: Database, actor: Actor, input: { id: number | null; data: PrizeData }) =>
+    A.savePrize(
+      db,
+      optionalId(input.id),
+      {
+        type: oneOf(data(input).type, ['POINTS', 'MULTIPLIER', 'REWARD', 'EXTRA_SPIN'] as const, 'Tipo de premio'),
+        points: optionalInt(data(input).points, 'Puntos'),
+        multiplier: optionalNum(data(input).multiplier, 'Multiplicador'),
+        rewardId: optionalId(data(input).rewardId),
+        validDays: optionalInt(data(input).validDays, 'Vigencia') ?? 7,
+        weight: int(data(input).weight, 'Peso'),
+        stock: optionalInt(data(input).stock, 'Cantidad disponible'),
+        status: oneOf(data(input).status, ['ACTIVE', 'INACTIVE'] as const, 'Estado'),
+      },
+      actor.id,
+    ),
+
   saveSetting: (db: Database, actor: Actor, input: { key: keyof typeof SETTING_DEFAULTS; value: string }) => {
     const key = oneOf(input.key, Object.keys(SETTING_DEFAULTS) as (keyof typeof SETTING_DEFAULTS)[], 'Parámetro')
-    const value = str(input.value).trim()
+    const value = str(input.value, 'Valor').trim()
     if (!value || !Number.isFinite(Number(value)) || Number(value) < 0) throw new DomainError('Valor numérico inválido')
     A.saveSetting(db, key, value, actor.id)
     return true

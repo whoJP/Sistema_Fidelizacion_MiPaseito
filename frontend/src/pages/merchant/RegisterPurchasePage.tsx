@@ -1,6 +1,6 @@
 import { useRef, useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
-import { AlertTriangle, CheckCircle2, Minus, Plus, Search, Trash2, Undo2, UserRound, X } from 'lucide-react'
+import { AlertTriangle, CakeSlice, CheckCircle2, Minus, Plus, Search, Trash2, TrendingUp, Undo2, UserRound, X } from 'lucide-react'
 import { ApiError, api, type IdentifiedCustomer } from '../../data/api'
 import { useDb } from '../../data/store'
 import { purchaseLines } from '../../domain/loyalty'
@@ -63,7 +63,7 @@ export function RegisterPurchasePage() {
         : [...current, { item, quantity: 1 }],
     )
   const setQuantity = (itemId: number, quantity: number) =>
-    setLines((current) => current.map((l) => (l.item.id === itemId ? { ...l, quantity: Math.max(1, Math.min(999, quantity || 1)) } : l)))
+    setLines((current) => current.map((l) => (l.item.id === itemId ? { ...l, quantity: Math.max(1, Math.min(999, Math.trunc(quantity) || 1)) } : l)))
   const remove = (itemId: number) => setLines((current) => current.filter((l) => l.item.id !== itemId))
 
   const submit = async (e: FormEvent) => {
@@ -117,6 +117,24 @@ export function RegisterPurchasePage() {
               </div>
             ) : (
               <ScanOrCode kind="customer" onSubmit={identify} busy={busy} scanLabel="Pide al cliente su QR de Paseo Club y apúntale con la cámara" />
+            )}
+            {customer?.birthdayToday && (
+              <p className="register-hint is-birthday">
+                <CakeSlice size={16} aria-hidden />
+                <span>
+                  ¡Hoy es el cumpleaños de {customer.firstName}! Registra su compra y luego entrégale su regalo en{' '}
+                  <Link to={`/merchant/${business.id}/birthday`}>Cumpleaños</Link>.
+                </span>
+              </p>
+            )}
+            {customer?.nextTier?.missingBs != null && (
+              <p className="register-hint">
+                <TrendingUp size={16} aria-hidden />
+                <span>
+                  A {customer.firstName} le faltan unos <b className="tabular">{formatMoney(customer.nextTier.missingBs)}</b> para subir a{' '}
+                  {customer.nextTier.tierName}.
+                </span>
+              </p>
             )}
           </Card>
 
@@ -203,6 +221,7 @@ export function RegisterPurchasePage() {
                                 inputMode="numeric"
                                 min={1}
                                 max={999}
+                                step={1}
                                 value={quantity}
                                 onChange={(e) => setQuantity(item.id, Number(e.target.value))}
                                 aria-label={`Cantidad de ${item.name}`}

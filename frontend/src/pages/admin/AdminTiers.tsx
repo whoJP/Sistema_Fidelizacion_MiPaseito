@@ -4,6 +4,7 @@ import { statusTotal, tierForStatus } from '../../domain/loyalty'
 import { formatInt } from '../../lib/format'
 import type { Tier } from '../../types/domain'
 import { Badge, Card, Empty, Field, Modal, run } from '../../components/ui'
+import { LIMITS, MAX_MULTIPLIER, MAX_SORT_ORDER, MAX_TIER_STATUS } from '../../domain/validation'
 import { AdminHeader, FormActions } from './shared'
 
 type Draft = { id: number | null; name: string; minimumStatus: string; pointsMultiplier: string; sortOrder: string; isActive: boolean }
@@ -93,17 +94,41 @@ export function AdminTiers() {
         <Modal title={draft.id ? 'Editar nivel' : 'Nuevo nivel'} onClose={() => setDraft(null)}>
           <form className="stack" onSubmit={save}>
             <Field label="Nombre">
-              <input required value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} />
+              <input required maxLength={LIMITS.tierName} value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} />
             </Field>
             <div className="grid-3">
-              <Field label="Puntos de nivel mínimos">
-                <input type="number" min={0} step={1} required value={draft.minimumStatus} onChange={(e) => setDraft({ ...draft, minimumStatus: e.target.value })} />
+              <Field label="Puntos de nivel mínimos" hint="El nivel inicial va con 0">
+                <input
+                  type="number"
+                  min={0}
+                  max={MAX_TIER_STATUS}
+                  step={1}
+                  required
+                  value={draft.minimumStatus}
+                  onChange={(e) => setDraft({ ...draft, minimumStatus: e.target.value })}
+                />
               </Field>
               <Field label="Multiplicador de puntos" hint="1 = normal, 1.5 = 50 % más">
-                <input type="number" min={0.01} max={99.99} step={0.01} required value={draft.pointsMultiplier} onChange={(e) => setDraft({ ...draft, pointsMultiplier: e.target.value })} />
+                <input
+                  type="number"
+                  min={0.01}
+                  max={MAX_MULTIPLIER}
+                  step={0.01}
+                  required
+                  value={draft.pointsMultiplier}
+                  onChange={(e) => setDraft({ ...draft, pointsMultiplier: e.target.value })}
+                />
               </Field>
               <Field label="Orden">
-                <input type="number" step={1} required value={draft.sortOrder} onChange={(e) => setDraft({ ...draft, sortOrder: e.target.value })} />
+                <input
+                  type="number"
+                  min={0}
+                  max={MAX_SORT_ORDER}
+                  step={1}
+                  required
+                  value={draft.sortOrder}
+                  onChange={(e) => setDraft({ ...draft, sortOrder: e.target.value })}
+                />
               </Field>
             </div>
             <label className="check">

@@ -20,6 +20,22 @@ export const SETTING_DEFAULTS = {
   STREAK_STATUS_BONUS: '10',
   REDEMPTION_EXPIRATION_MINUTES: '15',
   ABNORMAL_AMOUNT_THRESHOLD: '5000',
+  WELCOME_STATUS_BONUS: '225',
+  VISIT_CARD_SIZE: '10',
+  VISIT_CARD_GIFT_STAMPS: '2',
+  VISIT_CARD_MULTIPLIER: '2',
+  VISIT_CARD_VALID_DAYS: '7',
+  SPIN_COST: '50',
+  SPIN_EXTRA_MIN_PURCHASE: '100',
+  SPIN_EXTRA_DAILY_MAX: '3',
+  SPIN_MILESTONE_STATUS: '1000',
+  BIRTHDAY_BONUS_POINTS: '200',
+  BIRTHDAY_REWARD_MAX_POINTS: '1000',
+  POINTS_EXPIRATION_MONTHS: '12',
+  POINTS_EXPIRATION_NOTICE_DAYS: '15',
+  REACTIVATION_DAYS: '30',
+  AUTO_PROMO_MULTIPLIER: '2',
+  AUTO_PROMO_DAYS: '7',
 } as const
 
 export type SettingKey = keyof typeof SETTING_DEFAULTS
@@ -167,8 +183,11 @@ export function visibleRewards(db: Database, now = new Date()): Reward[] {
   })
 }
 
+/** Fields shared by a Reward and a BirthdayPerk, enough to describe what the customer receives. */
+export type RewardLike = Pick<Reward, 'type' | 'discountPercent' | 'discountAmount' | 'catalogItemId' | 'quantity' | 'description'>
+
 /** Human title built from the structured fields, so every business presents rewards the same way. */
-export function rewardTitle(db: Database, reward: Reward): string {
+export function rewardTitle(db: Database, reward: RewardLike): string {
   switch (reward.type) {
     case 'PERCENT_DISCOUNT':
       return reward.discountPercent ? `${reward.discountPercent}% de descuento` : 'Descuento'
@@ -210,14 +229,33 @@ export function rewardBlocker(db: Database, reward: Reward, userId: number): Rew
 
 // ---------- Promotions ----------
 
-export function activePromotions(db: Database, now = new Date()): Promotion[] {
-  return db.promotions.filter(
-    (p) => isLive(p) && p.status === 'ACTIVE' && withinWindow(now, p.startsAt, p.endsAt),
+const isRunning = (p: Promotion, now: Date) => isLive(p) && p.status === 'ACTIVE' && withinWindow(now, p.startsAt, p.endsAt)
+
+/** A single-use promotion is spent once a purchase that is still valid received points from it. */
+export function promotionUsed(db: Database, promotion: Promotion): boolean {
+  if (!promotion.singleUse) return false
+  return db.pointMovements.some(
+    (m) =>
+      m.promotionId === promotion.id &&
+      m.amount > 0 &&
+      db.transactions.find((t) => t.id === m.transactionId)?.status !== 'CANCELLED',
   )
 }
 
-export function promotionsForBusiness(db: Database, businessId: number, now = new Date()): Promotion[] {
-  return activePromotions(db, now).filter((p) => inScope(db, promotionScope(db, p.id), businessId))
+/** Promotions for every customer (personal ones are excluded). */
+export function activePromotions(db: Database, now = new Date()): Promotion[] {
+  return db.promotions.filter((p) => p.userId === null && isRunning(p, now))
+}
+
+/** Running personal promotions of a customer that still have a use left. */
+export function personalPromotions(db: Database, userId: number, now = new Date()): Promotion[] {
+  return db.promotions.filter((p) => p.userId === userId && isRunning(p, now) && !promotionUsed(db, p))
+}
+
+/** Promotions that apply at a business: the public ones plus, when `userId` is given, that customer's personal ones. */
+export function promotionsForBusiness(db: Database, businessId: number, now = new Date(), userId?: number): Promotion[] {
+  const personal = userId === undefined ? [] : personalPromotions(db, userId, now)
+  return [...activePromotions(db, now), ...personal].filter((p) => inScope(db, promotionScope(db, p.id), businessId))
 }
 
 export interface PurchaseQuote {
@@ -240,7 +278,7 @@ export function quotePurchase(
   const tierMultiplier = tier?.pointsMultiplier ?? 1
   const raw = amount * getSetting(db, 'POINTS_BASE_RATE')
   const basePoints = Math.floor(raw * tierMultiplier)
-  const promotionBonuses = promotionsForBusiness(db, businessId, now).map((promotion) => ({
+  const promotionBonuses = promotionsForBusiness(db, businessId, now, customerId).map((promotion) => ({
     promotion,
     points:
       promotion.type === 'POINTS_MULTIPLIER'
@@ -389,6 +427,7 @@ export function badgeProgress(db: Database, badge: Badge, userId: number): Badge
       const visits = [
         ...txs.map((t) => t.createdAt),
         ...db.eventAttendances.filter((a) => a.userId === userId).map((a) => a.checkedInAt),
+        ...db.spaceCheckIns.filter((c) => c.userId === userId).map((c) => c.createdAt),
       ].filter((iso) => localDateKey(iso) === badge.date)
       return nth(visits, 1)
     }

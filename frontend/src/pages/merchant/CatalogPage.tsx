@@ -5,6 +5,7 @@ import { formatInt, formatMoney, normalizeText } from '../../lib/format'
 import type { CatalogItem } from '../../types/domain'
 import { Badge, Card, Empty, Field, Modal, PageHeader, flash, run, vanish } from '../../components/ui'
 import { confirmDialog } from '../../components/dialog'
+import { LIMITS, moneyError } from '../../domain/validation'
 import { useWorkplace } from './useWorkplace'
 
 type Draft = { id: number | null; name: string; description: string; price: string; isAvailable: boolean }
@@ -60,11 +61,12 @@ export function CatalogPage() {
       .reduce((s, l) => s + l.quantity, 0)
 
   const price = draft ? parsePrice(draft.price) : null
-  const priceError = draft && draft.price.trim() !== '' && (price === null || price <= 0) ? 'Escribe un precio mayor a 0' : null
+  const priceError =
+    draft && draft.price.trim() !== '' ? (price === null ? 'Escribe un precio válido' : moneyError(price, 'El precio', { minExclusive: true })) : null
 
   const save = async (e: FormEvent) => {
     e.preventDefault()
-    if (!draft || price === null || price <= 0) return
+    if (!draft || price === null || priceError) return
     const ok = await run(
       'saveCatalogItem',
       {
@@ -218,19 +220,20 @@ export function CatalogPage() {
         <Modal title={draft.id ? 'Editar producto' : 'Nuevo producto'} onClose={() => setDraft(null)}>
           <form key={round} className="stack" onSubmit={save}>
             <Field label="Nombre">
-              <input required maxLength={150} value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} autoFocus />
+              <input required maxLength={LIMITS.name} value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} autoFocus />
             </Field>
             <Field label="Precio en Bs" error={priceError}>
               <input
                 required
                 inputMode="decimal"
                 placeholder="0,00"
+                maxLength={14}
                 value={draft.price}
                 onChange={(e) => setDraft({ ...draft, price: e.target.value })}
               />
             </Field>
             <Field label="Descripción (opcional)">
-              <textarea rows={3} value={draft.description} onChange={(e) => setDraft({ ...draft, description: e.target.value })} />
+              <textarea rows={3} maxLength={LIMITS.description} value={draft.description} onChange={(e) => setDraft({ ...draft, description: e.target.value })} />
             </Field>
             <label className="check">
               <input type="checkbox" checked={draft.isAvailable} onChange={(e) => setDraft({ ...draft, isAvailable: e.target.checked })} />
@@ -246,7 +249,7 @@ export function CatalogPage() {
               <button type="button" className="btn btn-ghost" onClick={() => setDraft(null)}>
                 Cancelar
               </button>
-              <button className="btn btn-primary" type="submit" disabled={price === null || price <= 0}>
+              <button className="btn btn-primary" type="submit" disabled={price === null || !!priceError}>
                 {draft.id ? 'Guardar cambios' : 'Agregar producto'}
               </button>
             </div>

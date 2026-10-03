@@ -1,8 +1,9 @@
 import { useState, type FormEvent } from 'react'
 import { Keyboard, ScanLine } from 'lucide-react'
+import { LIMITS } from '../domain/validation'
 import { QrReader } from './QrReader'
 
-type Kind = 'customer' | 'redemption'
+type Kind = 'customer' | 'redemption' | 'space'
 
 const SPEC: Record<Kind, { label: string; hint: string; placeholder: string; length: number; submit: string }> = {
   customer: {
@@ -13,21 +14,35 @@ const SPEC: Record<Kind, { label: string; hint: string; placeholder: string; len
     submit: 'Buscar cliente',
   },
   redemption: {
-    label: 'Código del canje',
-    hint: 'Está debajo del QR del canje, en la app del cliente (Recompensas › Mis canjes).',
-    placeholder: 'XXXXX-XXXXX',
+    label: 'Código del cliente o del canje',
+    hint: 'Los 6 números de la tarjeta del cliente, o el código del canje que ve en Recompensas › Mis canjes.',
+    placeholder: '000 000 o XXXXX-XXXXX',
     length: 10,
-    submit: 'Validar canje',
+    submit: 'Buscar',
+  },
+  space: {
+    label: 'Código del espacio',
+    hint: 'Son las 8 letras y números impresos debajo del QR del espacio.',
+    placeholder: 'XXXXXXXX',
+    length: 8,
+    submit: 'Registrar mi visita',
   },
 }
 
 const clean = (kind: Kind, raw: string) =>
-  kind === 'customer' ? raw.replace(/\D/g, '').slice(0, 6) : raw.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 10)
+  kind === 'customer'
+    ? raw.replace(/\D/g, '').slice(0, 6)
+    : raw.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, SPEC[kind].length)
+
+/** On the redemption counter the customer's 6-digit card code works too. */
+const isCardCode = (kind: Kind, value: string) => kind === 'redemption' && /^\d{6}$/.test(value)
 
 const pretty = (kind: Kind, value: string) =>
-  kind === 'customer'
+  kind === 'customer' || isCardCode(kind, value)
     ? value.replace(/^(\d{3})(\d)/, '$1 $2')
-    : value.replace(/^([A-Z0-9]{5})([A-Z0-9])/, '$1-$2')
+    : kind === 'redemption'
+      ? value.replace(/^([A-Z0-9]{5})([A-Z0-9])/, '$1-$2')
+      : value
 
 /**
  * Two ways to identify something at the counter: scan its QR with the camera (default) or type its short code.
@@ -47,7 +62,7 @@ export function ScanOrCode({
   const [mode, setMode] = useState<'scan' | 'code'>('scan')
   const [value, setValue] = useState('')
   const spec = SPEC[kind]
-  const ready = value.length === spec.length
+  const ready = value.length === spec.length || isCardCode(kind, value)
 
   const submit = async (e: FormEvent) => {
     e.preventDefault()
@@ -67,7 +82,13 @@ export function ScanOrCode({
       </div>
 
       {mode === 'scan' ? (
-        <QrReader onScan={(text) => void onSubmit(text)} paused={busy} label={scanLabel} />
+        <QrReader
+          onScan={(text) => {
+            if (text.length <= LIMITS.scanCode) void onSubmit(text)
+          }}
+          paused={busy}
+          label={scanLabel}
+        />
       ) : (
         <form className="code-form" onSubmit={submit}>
           <label className="field">

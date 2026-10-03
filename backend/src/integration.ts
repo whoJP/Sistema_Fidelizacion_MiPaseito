@@ -33,7 +33,7 @@ import {
   normalizeText,
 } from '../../frontend/src/lib/format.ts'
 import type { Business, CatalogItem, Database, Promotion, Reward, User } from '../../frontend/src/types/domain.ts'
-import { HttpError } from './auth.ts'
+import { HttpError, checkCustomerToken } from './auth.ts'
 import { config } from './config.ts'
 import { currentSnapshot } from './engine.ts'
 import { openApiSpec } from './openapi.ts'
@@ -386,4 +386,28 @@ integrationRouter.get('/customers/:id/movements', async (req, res) => {
       }
     })
   res.json({ data })
+})
+
+/**
+ * Lets the "Paseito" kiosk check a customer QR (PP1.…) without holding the signing secret. Read-only.
+ * The token is never logged: errors only carry the reason.
+ */
+export const customerQrRouter = Router()
+
+customerQrRouter.use(requireApiKey)
+
+customerQrRouter.post('/verify', async (req, res) => {
+  const token = req.body?.token
+  if (typeof token !== 'string' || !token.trim() || token.length > 512) throw new HttpError(400, 'Falta el campo token')
+  const check = checkCustomerToken(token)
+  if (!check.ok) {
+    if (check.reason === 'EXPIRED') throw new HttpError(410, 'El QR venció; pide al cliente que lo actualice')
+    throw new HttpError(401, 'El QR no es válido')
+  }
+  const { db } = await currentSnapshot()
+  const customer = db.users.find(
+    (u) => u.id === check.userId && u.role === 'CUSTOMER' && u.deletedAt === null && u.status === 'ACTIVE',
+  )
+  if (!customer) throw new HttpError(404, 'Cliente no encontrado o inactivo')
+  res.json({ userId: customer.id, firstName: customer.firstName, expiresAt: new Date(check.expiresAt).toISOString() })
 })

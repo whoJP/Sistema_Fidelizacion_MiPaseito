@@ -5,6 +5,7 @@ import { MISSION_GOAL_HINTS, MISSION_TYPE_LABELS, formatDateTime, formatInt, for
 import type { Database, Mission, MissionStatus, MissionType } from '../../types/domain'
 import { Card, Empty, Field, Modal, run, vanish } from '../../components/ui'
 import { confirmDialog } from '../../components/dialog'
+import { LIMITS, MAX_GOAL, MAX_REWARD_POINTS } from '../../domain/validation'
 import { WindowFields, draftWindowError } from '../../components/WindowFields'
 import { AdminHeader, FormActions, ScopeEditor, StatusBadge, scopeSummary, type ScopeValue } from './shared'
 
@@ -16,6 +17,7 @@ interface Draft {
   goal: string
   rewardPoints: string
   rewardStatus: string
+  rewardSpins: string
   startsAt: string
   endsAt: string
   status: MissionStatus
@@ -33,6 +35,7 @@ const toDraft = (db: Database, m?: Mission): Draft => {
     goal: String(m?.goal ?? ''),
     rewardPoints: String(m?.rewardPoints ?? 0),
     rewardStatus: String(m?.rewardStatus ?? 0),
+    rewardSpins: String(m?.rewardSpins ?? 0),
     startsAt: toLocalInput(m?.startsAt ?? start.toISOString()),
     endsAt: toLocalInput(m?.endsAt ?? end.toISOString()),
     status: m?.status ?? 'DRAFT',
@@ -46,6 +49,12 @@ export function AdminMissions() {
   const missions = db.missions.filter((m) => m.deletedAt === null).sort((a, b) => b.id - a.id)
   const editing = (draft?.id && db.missions.find((m) => m.id === draft.id)) || null
   const windowProblem = draft && draftWindowError(draft, editing, true)
+  const rewardProblem =
+    draft && [draft.rewardPoints, draft.rewardStatus, draft.rewardSpins].every((v) => !(Number(v) > 0))
+      ? 'La misión debe dar puntos, puntos de nivel o giros de ruleta'
+      : null
+  const scopeProblem =
+    draft?.type === 'BUY_CATEGORY' && draft.scope.categoryIds.length === 0 ? 'Elige en Alcance la categoría donde hay que comprar' : null
 
   const remove = async (m: Mission, row: HTMLElement) => {
     const ok = await confirmDialog({
@@ -59,7 +68,7 @@ export function AdminMissions() {
 
   const save = async (e: FormEvent) => {
     e.preventDefault()
-    if (!draft || windowProblem) return
+    if (!draft || windowProblem || rewardProblem || scopeProblem) return
     const startsAt = fromLocalInput(draft.startsAt)
     const endsAt = fromLocalInput(draft.endsAt)
     if (!startsAt || !endsAt) return
@@ -71,9 +80,10 @@ export function AdminMissions() {
           name: draft.name,
           description: draft.description.trim() || null,
           type: draft.type,
-          goal: Math.trunc(Number(draft.goal)),
-          rewardPoints: Math.max(0, Math.trunc(Number(draft.rewardPoints))),
-          rewardStatus: Math.max(0, Math.trunc(Number(draft.rewardStatus))),
+          goal: Number(draft.goal),
+          rewardPoints: Number(draft.rewardPoints || 0),
+          rewardStatus: Number(draft.rewardStatus || 0),
+          rewardSpins: Number(draft.rewardSpins || 0),
           startsAt,
           endsAt,
           status: draft.status,
@@ -121,6 +131,7 @@ export function AdminMissions() {
                     <td className="num">{m.type === 'TOTAL_PURCHASE_AMOUNT' ? formatMoney(m.goal) : formatInt(m.goal)}</td>
                     <td className="small">
                       {formatInt(m.rewardPoints)} puntos · {formatInt(m.rewardStatus)} de nivel
+                      {m.rewardSpins > 0 && ` · ${m.rewardSpins === 1 ? '1 giro' : `${m.rewardSpins} giros`}`}
                     </td>
                     <td className="small">
                       {formatDateTime(m.startsAt)} - {formatDateTime(m.endsAt)}
@@ -151,7 +162,7 @@ export function AdminMissions() {
           <form className="stack" onSubmit={save}>
             <div className="grid-2">
               <Field label="Nombre">
-                <input required value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} />
+                <input required maxLength={LIMITS.name} value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} />
               </Field>
               <Field label="Estado">
                 <select value={draft.status} onChange={(e) => setDraft({ ...draft, status: e.target.value as MissionStatus })}>
@@ -162,7 +173,7 @@ export function AdminMissions() {
               </Field>
             </div>
             <Field label="Descripción (opcional)">
-              <textarea rows={2} value={draft.description} onChange={(e) => setDraft({ ...draft, description: e.target.value })} />
+              <textarea rows={2} maxLength={LIMITS.description} value={draft.description} onChange={(e) => setDraft({ ...draft, description: e.target.value })} />
             </Field>
             <div className="grid-2">
               <Field label="Tipo">
@@ -175,20 +186,42 @@ export function AdminMissions() {
                 </select>
               </Field>
               <Field label={draft.type === 'TOTAL_PURCHASE_AMOUNT' ? 'Objetivo (Bs)' : 'Objetivo'} hint={MISSION_GOAL_HINTS[draft.type]}>
-                <input type="number" min={1} step={1} required value={draft.goal} onChange={(e) => setDraft({ ...draft, goal: e.target.value })} />
+                <input type="number" min={1} max={MAX_GOAL} step={1} required value={draft.goal} onChange={(e) => setDraft({ ...draft, goal: e.target.value })} />
               </Field>
             </div>
-            <div className="grid-2">
-              <Field label="Puntos de premio">
-                <input type="number" min={0} step={1} value={draft.rewardPoints} onChange={(e) => setDraft({ ...draft, rewardPoints: e.target.value })} />
+            <div className="grid-3">
+              <Field label="Puntos de premio" error={rewardProblem}>
+                <input
+                  type="number"
+                  min={0}
+                  max={MAX_REWARD_POINTS}
+                  step={1}
+                  value={draft.rewardPoints}
+                  onChange={(e) => setDraft({ ...draft, rewardPoints: e.target.value })}
+                />
               </Field>
               <Field label="Puntos de nivel de premio">
-                <input type="number" min={0} step={1} value={draft.rewardStatus} onChange={(e) => setDraft({ ...draft, rewardStatus: e.target.value })} />
+                <input
+                  type="number"
+                  min={0}
+                  max={MAX_REWARD_POINTS}
+                  step={1}
+                  value={draft.rewardStatus}
+                  onChange={(e) => setDraft({ ...draft, rewardStatus: e.target.value })}
+                />
+              </Field>
+              <Field label="Giros gratis de ruleta">
+                <input type="number" min={0} max={5} step={1} value={draft.rewardSpins} onChange={(e) => setDraft({ ...draft, rewardSpins: e.target.value })} />
               </Field>
             </div>
             <WindowFields value={draft} onChange={(w) => setDraft({ ...draft, ...w })} previous={editing} required />
             <ScopeEditor db={db} value={draft.scope} onChange={(scope) => setDraft({ ...draft, scope })} />
-            <FormActions onCancel={() => setDraft(null)} disabled={!!windowProblem} />
+            {scopeProblem && (
+              <span className="field-error" role="alert">
+                {scopeProblem}
+              </span>
+            )}
+            <FormActions onCancel={() => setDraft(null)} disabled={!!(windowProblem || rewardProblem || scopeProblem)} />
           </form>
         </Modal>
       )}

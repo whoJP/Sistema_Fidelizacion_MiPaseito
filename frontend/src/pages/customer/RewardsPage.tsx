@@ -1,9 +1,10 @@
 import { useState } from 'react'
-import { QRCodeSVG } from 'qrcode.react'
 import { CheckCircle2, Lock, TimerOff } from 'lucide-react'
 import { useDb } from '../../data/store'
 import { redemptionExpiresAt } from '../../data/actions'
+import { MemberCard } from '../../components/MemberCard'
 import {
+  currentTier,
   pointsBalance,
   rewardBlocker,
   rewardConditions,
@@ -24,6 +25,14 @@ const STATUS_LABEL: Record<Redemption['status'], [string, 'accent' | 'success' |
   EXPIRED: ['Expirado', 'neutral'],
   CANCELLED: ['Cancelado', 'danger'],
 }
+
+const ORIGIN_LABEL: Record<Exclude<Redemption['origin'], 'POINTS'>, string> = {
+  PRIZE: 'Premio de la ruleta',
+  BIRTHDAY: 'Regalo de cumpleaños',
+}
+
+/** Gifts last days; point redemptions last minutes and show a countdown. */
+const LONG_VALIDITY_MS = 60 * 60_000
 
 export function RewardsPage() {
   const db = useDb()
@@ -150,10 +159,10 @@ export function RewardsPage() {
                   <div>
                     <strong>{titleOf(r.rewardId)}</strong>
                     <div className="muted small">
-                      {business?.name} · {formatInt(r.pointsSpent)} puntos
+                      {business?.name} · {r.origin === 'POINTS' ? `${formatInt(r.pointsSpent)} puntos` : ORIGIN_LABEL[r.origin]}
                     </div>
                     <div className="muted small">
-                      {r.status === 'PENDING' ? <ExpiresIn createdAt={r.createdAt} /> : formatDateTime(r.redeemedAt ?? r.createdAt)}
+                      {r.status === 'PENDING' ? <ExpiresIn redemption={r} /> : formatDateTime(r.redeemedAt ?? r.createdAt)}
                     </div>
                   </div>
                   <div className="row gap">
@@ -161,11 +170,13 @@ export function RewardsPage() {
                     {r.status === 'PENDING' && (
                       <>
                         <button className="btn btn-sm" onClick={() => setShowing(r.id)}>
-                          Mostrar QR
+                          Usar en el local
                         </button>
-                        <button className="btn btn-ghost btn-sm" onClick={(e) => cancel(r, e.currentTarget)}>
-                          Cancelar
-                        </button>
+                        {r.origin === 'POINTS' && (
+                          <button className="btn btn-ghost btn-sm" onClick={(e) => cancel(r, e.currentTarget)}>
+                            Cancelar
+                          </button>
+                        )}
                       </>
                     )}
                   </div>
@@ -183,8 +194,8 @@ export function RewardsPage() {
             quedarán {formatInt(balance - confirm.pointsCost)} puntos.
           </p>
           <p className="muted small">
-            Recibirás un QR válido por {redemptionMinutes} minutos para mostrar en el establecimiento: canjea cuando ya estés ahí. Si no se usa a tiempo,
-            los puntos vuelven a tu saldo.
+            Tendrás {redemptionMinutes} minutos para mostrar tu tarjeta en el establecimiento: canjea cuando ya estés ahí. Si no se usa a tiempo, los
+            puntos vuelven a tu saldo.
           </p>
           <div className="row end gap">
             <button className="btn btn-ghost" onClick={() => setConfirm(null)}>
@@ -198,7 +209,7 @@ export function RewardsPage() {
       )}
 
       {showing !== null && (
-        <Modal title="Código de canje" onClose={() => setShowing(null)}>
+        <Modal title="Usar en el local" onClose={() => setShowing(null)}>
           <RedemptionPass redemptionId={showing} title={titleOf} where={whereLabel} onClose={() => setShowing(null)} />
         </Modal>
       )}
@@ -219,12 +230,14 @@ function RedemptionPass({
   onClose: () => void
 }) {
   const db = useDb()
+  const user = useUser()
   const now = useNow(500)
   const r = db.redemptions.find((x) => x.id === redemptionId)
   if (!r) return null
   const created = new Date(r.createdAt).getTime()
-  const expires = redemptionExpiresAt(db, r.createdAt).getTime()
+  const expires = redemptionExpiresAt(db, r.createdAt, r.expiresAt).getTime()
   const expired = r.status === 'EXPIRED' || (r.status === 'PENDING' && now >= expires)
+  const gift = r.origin !== 'POINTS'
 
   if (r.status === 'REDEEMED')
     return (
@@ -248,11 +261,13 @@ function RedemptionPass({
         <span className="pass-icon" aria-hidden>
           <TimerOff size={32} />
         </span>
-        <h3>{r.status === 'CANCELLED' ? 'Canje cancelado' : 'El código expiró'}</h3>
+        <h3>{r.status === 'CANCELLED' ? 'Canje cancelado' : gift ? 'Este regalo venció' : 'El código expiró'}</h3>
         <p className="muted">
-          {r.status === 'EXPIRED' || r.status === 'CANCELLED'
-            ? `Te devolvimos ${formatInt(r.pointsSpent)} puntos. Puedes volver a canjear cuando estés en el establecimiento.`
-            : `Estamos devolviendo tus ${formatInt(r.pointsSpent)} puntos; se verán en tu saldo en unos segundos.`}
+          {gift
+            ? 'Los regalos tienen fecha de vencimiento. ¡Que no se te pase el próximo!'
+            : r.status === 'EXPIRED' || r.status === 'CANCELLED'
+              ? `Te devolvimos ${formatInt(r.pointsSpent)} puntos. Puedes volver a canjear cuando estés en el establecimiento.`
+              : `Estamos devolviendo tus ${formatInt(r.pointsSpent)} puntos; se verán en tu saldo en unos segundos.`}
         </p>
         <button className="btn" onClick={onClose}>
           Cerrar
@@ -262,28 +277,42 @@ function RedemptionPass({
 
   return (
     <div className="stack center">
-      <div className="qr-box">
-        <QRCodeSVG value={r.verificationToken} size={184} bgColor="#f3eee0" fgColor="#010102" />
-      </div>
-      <code className="token token-lg">{r.verificationToken}</code>
       <h3>{title(r.rewardId)}</h3>
-      <div className="pass-timer">
-        <div className="row between small">
-          <span className="muted">Vence en</span>
-          <strong className="tabular">{formatCountdown(expires - now)}</strong>
-        </div>
-        <TimeBar key={r.id} start={created} end={expires} now={now} />
-      </div>
       <p className="muted small">
-        Muéstralo en {where(r.rewardId)} para que lo escaneen. Si no se usa a tiempo, los {formatInt(r.pointsSpent)} puntos vuelven a tu saldo.
+        Muestra tu tarjeta en <b>{where(r.rewardId)}</b>: al escanearla verán este canje y lo validan.
+      </p>
+      <div className="pass-card">
+        <MemberCard user={user} tierName={currentTier(db, user.id)?.name ?? null} points={pointsBalance(db, user.id)} revealed locked onToggle={() => {}} />
+      </div>
+      {gift && expires - now > LONG_VALIDITY_MS ? (
+        <p className="small">
+          {ORIGIN_LABEL[r.origin as keyof typeof ORIGIN_LABEL]} · válido hasta el <b>{formatDateTime(new Date(expires).toISOString())}</b>
+        </p>
+      ) : (
+        <div className="pass-timer">
+          <div className="row between small">
+            <span className="muted">Vence en</span>
+            <strong className="tabular">{formatCountdown(expires - now)}</strong>
+          </div>
+          <TimeBar key={r.id} start={created} end={expires} now={now} />
+        </div>
+      )}
+      <p className="muted small">
+        {gift ? 'Es un regalo: no usa tus puntos.' : `Si no se usa a tiempo, los ${formatInt(r.pointsSpent)} puntos vuelven a tu saldo.`}
+      </p>
+      <p className="pass-fallback small">
+        ¿No pueden escanear? Dicta el código del canje <code className="token">{r.verificationToken}</code>
       </p>
     </div>
   )
 }
 
-function ExpiresIn({ createdAt }: { createdAt: string }) {
+function ExpiresIn({ redemption: r }: { redemption: Redemption }) {
   const db = useDb()
   const now = useNow(1000)
-  const left = redemptionExpiresAt(db, createdAt).getTime() - now
-  return <>{left > 0 ? `Vence en ${formatCountdown(left)}` : 'Expiró, tus puntos vuelven a tu saldo'}</>
+  const expires = redemptionExpiresAt(db, r.createdAt, r.expiresAt)
+  const left = expires.getTime() - now
+  if (left > LONG_VALIDITY_MS) return <>Válido hasta el {formatDateTime(expires.toISOString())}</>
+  if (left > 0) return <>Vence en {formatCountdown(left)}</>
+  return <>{r.origin === 'POINTS' ? 'Expiró, tus puntos vuelven a tu saldo' : 'Venció'}</>
 }

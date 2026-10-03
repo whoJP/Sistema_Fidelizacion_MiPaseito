@@ -71,17 +71,28 @@ export function matchCustomerCode(value: string, userIds: number[], now = Date.n
   return userIds.filter((id) => customerCode(id, window) === code || customerCode(id, window - 1) === code)
 }
 
-export function readCustomerToken(token: string, now = Date.now()): number {
-  const [prefix, payload, signature] = token.trim().split('.')
-  if (prefix !== 'PP1' || !payload || !signature) {
-    throw new HttpError(422, 'Código no válido. Escanea el QR del cliente o escribe los 6 números de su tarjeta.')
-  }
+export type CustomerTokenCheck =
+  | { ok: true; userId: number; expiresAt: number }
+  | { ok: false; reason: 'MALFORMED' | 'BAD_SIGNATURE' | 'EXPIRED' }
+
+export function checkCustomerToken(token: string, now = Date.now()): CustomerTokenCheck {
+  const [prefix, payload, signature, extra] = token.trim().split('.')
+  if (prefix !== 'PP1' || !payload || !signature || extra !== undefined) return { ok: false, reason: 'MALFORMED' }
   const expected = Buffer.from(sign(payload))
   const given = Buffer.from(signature)
-  if (expected.length !== given.length || !timingSafeEqual(expected, given)) {
-    throw new HttpError(422, 'Este QR no es de Paseo Club')
-  }
+  if (expected.length !== given.length || !timingSafeEqual(expected, given)) return { ok: false, reason: 'BAD_SIGNATURE' }
   const { u, exp } = JSON.parse(Buffer.from(payload, 'base64url').toString()) as { u: number; exp: number }
-  if (exp < now) throw new HttpError(422, 'El código del cliente expiró, pídele que lo actualice')
-  return u
+  if (!Number.isInteger(u) || !Number.isFinite(exp)) return { ok: false, reason: 'MALFORMED' }
+  if (exp < now) return { ok: false, reason: 'EXPIRED' }
+  return { ok: true, userId: u, expiresAt: exp }
+}
+
+export function readCustomerToken(token: string, now = Date.now()): number {
+  const check = checkCustomerToken(token, now)
+  if (check.ok) return check.userId
+  if (check.reason === 'MALFORMED') {
+    throw new HttpError(422, 'Código no válido. Escanea el QR del cliente o escribe los 6 números de su tarjeta.')
+  }
+  if (check.reason === 'BAD_SIGNATURE') throw new HttpError(422, 'Este QR no es de Paseo Club')
+  throw new HttpError(422, 'El código del cliente expiró, pídele que lo actualice')
 }

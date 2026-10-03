@@ -3,6 +3,7 @@ import { MessageSquareWarning } from 'lucide-react'
 import { useDb } from '../../data/store'
 import { undoDeadline } from '../../data/actions'
 import { purchaseLines } from '../../domain/loyalty'
+import { LIMITS } from '../../domain/validation'
 import { formatDateTime, formatInt, formatMoney, fullName, plural } from '../../lib/format'
 import { useUser } from '../../session'
 import type { CancellationRequestStatus, Transaction, TransactionStatus } from '../../types/domain'
@@ -34,7 +35,7 @@ function RequestModal({ tx, onClose }: { tx: Transaction; onClose: () => void })
   const [reason, setReason] = useState('')
   const [busy, setBusy] = useState(false)
   const customer = db.users.find((u) => u.id === tx.customerId)
-  const valid = reason.trim().length >= 10
+  const valid = reason.trim().length >= LIMITS.reasonMin
 
   const submit = async (e: FormEvent) => {
     e.preventDefault()
@@ -54,8 +55,8 @@ function RequestModal({ tx, onClose }: { tx: Transaction; onClose: () => void })
           La administración del Paseo revisará tu pedido. Si lo aprueba, la compra se anula y se avisa al cliente; si lo rechaza, verás su respuesta
           aquí. Solo se puede enviar una solicitud por compra.
         </p>
-        <Field label="Motivo" hint={`${reason.trim().length}/500 · mínimo 10 caracteres`}>
-          <textarea rows={3} maxLength={500} value={reason} onChange={(e) => setReason(e.target.value)} autoFocus />
+        <Field label="Motivo" hint={`${reason.trim().length}/${LIMITS.reason} · mínimo ${LIMITS.reasonMin} caracteres`}>
+          <textarea rows={3} maxLength={LIMITS.reason} value={reason} onChange={(e) => setReason(e.target.value)} autoFocus />
         </Field>
         <div className="chips" aria-label="Motivos frecuentes">
           {REASON_EXAMPLES.map((r) => (

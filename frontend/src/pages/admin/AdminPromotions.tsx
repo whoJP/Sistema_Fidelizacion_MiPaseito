@@ -1,11 +1,13 @@
 import { useState, type FormEvent } from 'react'
 import { useDb } from '../../data/store'
-import { promotionScope } from '../../domain/loyalty'
-import { formatDateTime, formatInt, fromLocalInput, toLocalInput } from '../../lib/format'
+import { promotionReason } from '../../domain/engagement'
+import { promotionScope, promotionUsed } from '../../domain/loyalty'
+import { formatDateTime, formatInt, fromLocalInput, fullName, toLocalInput } from '../../lib/format'
 import type { Database, Promotion, PromotionStatus, PromotionType } from '../../types/domain'
-import { Card, Empty, Field, Modal, run, vanish } from '../../components/ui'
+import { Badge, Card, Empty, Field, Modal, run, useNow, vanish } from '../../components/ui'
 import { confirmDialog } from '../../components/dialog'
 import { WindowFields, draftWindowError } from '../../components/WindowFields'
+import { LIMITS, MAX_MULTIPLIER, MAX_REWARD_POINTS, intError, multiplierError } from '../../domain/validation'
 import { AdminHeader, FormActions, ScopeEditor, StatusBadge, scopeSummary, type ScopeValue } from './shared'
 
 interface Draft {
@@ -18,6 +20,10 @@ interface Draft {
   status: PromotionStatus
   scope: ScopeValue
 }
+
+const AUTOMATIC_SHOWN = 30
+
+const benefit = (p: Promotion) => (p.type === 'POINTS_MULTIPLIER' ? `Puntos ×${p.value}` : `+${formatInt(p.value)} puntos`)
 
 const toDraft = (db: Database, p?: Promotion): Draft => ({
   id: p?.id ?? null,
@@ -33,9 +39,25 @@ const toDraft = (db: Database, p?: Promotion): Draft => ({
 export function AdminPromotions() {
   const db = useDb()
   const [draft, setDraft] = useState<Draft | null>(null)
-  const promotions = db.promotions.filter((p) => p.deletedAt === null).sort((a, b) => b.id - a.id)
+  const promotions = db.promotions.filter((p) => p.deletedAt === null && p.userId === null).sort((a, b) => b.id - a.id)
+  const personal = db.promotions
+    .filter((p) => p.deletedAt === null && p.userId !== null)
+    .sort((a, b) => b.id - a.id)
+    .slice(0, AUTOMATIC_SHOWN)
+  const now = useNow(60_000)
+  const personalState = (p: Promotion): [string, 'success' | 'neutral' | 'accent'] => {
+    if (promotionUsed(db, p)) return ['Usada', 'accent']
+    if (Date.parse(p.endsAt) < now) return ['Vencida', 'neutral']
+    return ['Vigente', 'success']
+  }
   const editing = (draft?.id && db.promotions.find((p) => p.id === draft.id)) || null
   const windowProblem = draft && draftWindowError(draft, editing, true)
+  const valueProblem =
+    !draft || !draft.value.trim()
+      ? null
+      : draft.type === 'POINTS_MULTIPLIER'
+        ? multiplierError(Number(draft.value), 'El multiplicador')
+        : intError(Number(draft.value), 'Los puntos extra', 1, MAX_REWARD_POINTS)
 
   const remove = async (p: Promotion, row: HTMLElement) => {
     const ok = await confirmDialog({
@@ -49,7 +71,7 @@ export function AdminPromotions() {
 
   const save = async (e: FormEvent) => {
     e.preventDefault()
-    if (!draft || windowProblem) return
+    if (!draft || windowProblem || valueProblem) return
     const startsAt = fromLocalInput(draft.startsAt)
     const endsAt = fromLocalInput(draft.endsAt)
     if (!startsAt || !endsAt) return
@@ -60,7 +82,7 @@ export function AdminPromotions() {
         data: {
           name: draft.name,
           type: draft.type,
-          value: Math.round(Number(draft.value) * 100) / 100,
+          value: Number(draft.value),
           startsAt,
           endsAt,
           status: draft.status,
@@ -102,7 +124,7 @@ export function AdminPromotions() {
                     <td>
                       <strong>{p.name}</strong>
                     </td>
-                    <td>{p.type === 'POINTS_MULTIPLIER' ? `Puntos ×${p.value}` : `+${formatInt(p.value)} puntos`}</td>
+                    <td>{benefit(p)}</td>
                     <td className="small">
                       {formatDateTime(p.startsAt)} - {formatDateTime(p.endsAt)}
                     </td>
@@ -129,12 +151,62 @@ export function AdminPromotions() {
         )}
       </Card>
 
+      <Card>
+        <h2>Promociones automáticas</h2>
+        <p className="muted small">
+          Las crea el sistema para un cliente: regreso de clientes dormidos, aniversarios, tarjeta de visitas completa y premios de la ruleta. Se ajustan
+          desde Configuración.
+        </p>
+        {personal.length === 0 ? (
+          <Empty>Todavía no se generó ninguna.</Empty>
+        ) : (
+          <div className="table-wrap">
+            <table className="table table-stack">
+              <thead>
+                <tr>
+                  <th>Cliente</th>
+                  <th>Motivo</th>
+                  <th>Beneficio</th>
+                  <th>Vigencia</th>
+                  <th>Estado</th>
+                </tr>
+              </thead>
+              <tbody>
+                {personal.map((p) => {
+                  const customer = db.users.find((u) => u.id === p.userId)
+                  const [label, tone] = personalState(p)
+                  return (
+                    <tr key={p.id}>
+                      <td>
+                        <strong>{customer ? fullName(customer) : 'Cliente'}</strong>
+                        <div className="muted small">{p.name}</div>
+                      </td>
+                      <td data-label="Motivo">{promotionReason(p)}</td>
+                      <td data-label="Beneficio">
+                        {benefit(p)}
+                        {p.singleUse && <span className="muted small"> · una compra</span>}
+                      </td>
+                      <td className="small" data-label="Vigencia">
+                        {formatDateTime(p.startsAt)} - {formatDateTime(p.endsAt)}
+                      </td>
+                      <td data-label="Estado">
+                        <Badge tone={tone}>{label}</Badge>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </Card>
+
       {draft && (
         <Modal title={draft.id ? 'Editar promoción' : 'Nueva promoción'} onClose={() => setDraft(null)} wide>
           <form className="stack" onSubmit={save}>
             <div className="grid-2">
               <Field label="Nombre">
-                <input required value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} />
+                <input required maxLength={LIMITS.name} value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} />
               </Field>
               <Field label="Estado">
                 <select value={draft.status} onChange={(e) => setDraft({ ...draft, status: e.target.value as PromotionStatus })}>
@@ -151,13 +223,21 @@ export function AdminPromotions() {
                   <option value="FIXED_POINTS">Puntos extra fijos</option>
                 </select>
               </Field>
-              <Field label={draft.type === 'POINTS_MULTIPLIER' ? 'Multiplicador (ej. 2 = doble)' : 'Puntos extra por compra'}>
-                <input type="number" step={draft.type === 'POINTS_MULTIPLIER' ? 0.1 : 1} min={0} required value={draft.value} onChange={(e) => setDraft({ ...draft, value: e.target.value })} />
+              <Field label={draft.type === 'POINTS_MULTIPLIER' ? 'Multiplicador (ej. 2 = doble)' : 'Puntos extra por compra'} error={valueProblem}>
+                <input
+                  type="number"
+                  step={draft.type === 'POINTS_MULTIPLIER' ? 0.01 : 1}
+                  min={draft.type === 'POINTS_MULTIPLIER' ? 1.01 : 1}
+                  max={draft.type === 'POINTS_MULTIPLIER' ? MAX_MULTIPLIER : MAX_REWARD_POINTS}
+                  required
+                  value={draft.value}
+                  onChange={(e) => setDraft({ ...draft, value: e.target.value })}
+                />
               </Field>
             </div>
             <WindowFields value={draft} onChange={(w) => setDraft({ ...draft, ...w })} previous={editing} required />
             <ScopeEditor db={db} value={draft.scope} onChange={(scope) => setDraft({ ...draft, scope })} />
-            <FormActions onCancel={() => setDraft(null)} disabled={!!windowProblem} />
+            <FormActions onCancel={() => setDraft(null)} disabled={!!(windowProblem || valueProblem)} />
           </form>
         </Modal>
       )}

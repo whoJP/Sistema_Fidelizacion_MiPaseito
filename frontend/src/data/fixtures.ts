@@ -1,8 +1,9 @@
 // Demo data for Paseo Aranjuez (Av. América #488, Cochabamba), loaded into MySQL by `npm run db:seed` and the demo reset.
 // Brands, floors and opening hours follow the real mall; customers, prices and purchases are fictional.
 // Amounts in bolivianos (Bs); reference rule from the hackathon brief: Bs 1 = 1 punto.
-import type { Badge, Business, CatalogItem, Category, Database, DayOfWeek, Reward, User } from '../types/domain'
-import { checkInEvent, createRedemption, registerPurchase, validateRedemption } from './actions'
+import { addMonthsKey, startOfLocalDay, todayKey } from '../domain/time'
+import type { Badge, BirthdayPerk, Business, CatalogItem, Category, Database, DayOfWeek, Reward, SpinPrize, User } from '../types/domain'
+import { checkInEvent, checkInSpace, createRedemption, registerPurchase, validateRedemption } from './actions'
 
 const DAYS: DayOfWeek[] = ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY', 'SUNDAY']
 
@@ -47,6 +48,13 @@ function emptyDatabase(): Database {
     events: [],
     eventAttendances: [],
     badges: [],
+    spaces: [],
+    spaceCheckIns: [],
+    spinPrizes: [],
+    spins: [],
+    kycRequests: [],
+    birthdayPerks: [],
+    birthdayClaims: [],
     fraudAlerts: [],
     auditLogs: [],
     systemSettings: [],
@@ -181,6 +189,37 @@ export function buildDemoDatabase(): Database {
     db.businessMembers.push({ id: db.businessMembers.length + 1, userId: account.id, businessId, role, status: 'ACTIVE' })
   })
 
+  // Ana joined exactly 3 months ago (her anniversary week starts today); Jimena stopped coming (reactivation promo).
+  const ana = db.users.find((u) => u.id === 2)!
+  ana.createdAt = ana.updatedAt = new Date(Date.parse(startOfLocalDay(addMonthsKey(todayKey(), -3))) + 15 * 3600_000).toISOString()
+  const jimena = user(db.users.length + 1, 'jimena@demo.paseo', 'Jimena', 'Vargas')
+  db.users.push(jimena)
+  // Camila verified her birthday with her ID card: it is today.
+  const camila = db.users.find((u) => u.id === 6)!
+  camila.birthDate = `1998-${todayKey().slice(5)}`
+  db.kycRequests.push({
+    id: 1,
+    userId: 6,
+    birthDate: camila.birthDate,
+    status: 'APPROVED',
+    reviewedById: 1,
+    reviewNote: null,
+    createdAt: iso(daysAgo(20)),
+    reviewedAt: iso(daysAgo(19)),
+  })
+  for (const customer of db.users.filter((u) => u.role === 'CUSTOMER')) {
+    db.statusMovements.push({
+      id: db.statusMovements.length + 1,
+      userId: customer.id,
+      transactionId: null,
+      missionId: null,
+      checkInId: null,
+      type: 'WELCOME',
+      amount: 225,
+      createdAt: customer.createdAt,
+    })
+  }
+
   const item = (businessId: number, name: string, price: number, description: string | null = null): CatalogItem => ({
     id: db.catalogItems.length + 1,
     businessId,
@@ -277,6 +316,7 @@ export function buildDemoDatabase(): Database {
     rewardPoints: number,
     rewardStatus: number,
     scope: { businessIds?: number[]; categoryIds?: number[] } = {},
+    rewardSpins = 0,
   ) => {
     db.missions.push({
       id,
@@ -286,6 +326,7 @@ export function buildDemoDatabase(): Database {
       goal,
       rewardPoints,
       rewardStatus,
+      rewardSpins,
       startsAt: iso(daysAgo(40, 0)),
       endsAt: iso(daysAgo(-30, 23)),
       status: 'ACTIVE',
@@ -295,45 +336,40 @@ export function buildDemoDatabase(): Database {
     scope.businessIds?.forEach((businessId) => db.missionBusinesses.push({ missionId: id, businessId }))
     scope.categoryIds?.forEach((categoryId) => db.missionCategories.push({ missionId: id, categoryId }))
   }
-  mission(1, 'Ruta gastronómica', 'Compra en 2 locales del Paseo de Comidas o de El 4to.', 'BUY_DISTINCT_BUSINESSES', 2, 300, 100, { categoryIds: [1] })
+  mission(1, 'Ruta gastronómica', 'Compra en 2 locales del Paseo de Comidas o de El 4to.', 'BUY_DISTINCT_BUSINESSES', 2, 300, 100, { categoryIds: [1] }, 1)
   mission(2, 'Explorador del Paseo', 'Compra por primera vez en 8 establecimientos.', 'DISCOVER_BUSINESS', 8, 500, 200)
   mission(3, 'Constancia', 'Compra en 4 semanas distintas.', 'WEEKLY_PURCHASE', 4, 400, 200)
   mission(4, 'Gran compra', 'Acumula Bs 3.000 en compras.', 'TOTAL_PURCHASE_AMOUNT', 3000, 600, 250)
-  mission(5, 'Mix de estilos', 'Compra en 3 categorías distintas.', 'BUY_DISTINCT_CATEGORIES', 3, 350, 150)
+  mission(5, 'Mix de estilos', 'Compra en 3 categorías distintas.', 'BUY_DISTINCT_CATEGORIES', 3, 350, 150, {}, 1)
 
+  const manual = { userId: null, origin: 'MANUAL' as const, singleUse: false, status: 'ACTIVE' as const, createdById: 1, deletedAt: null }
   db.promotions.push(
     {
+      ...manual,
       id: 1,
       name: 'Doble puntos en cafeterías',
       type: 'POINTS_MULTIPLIER',
       value: 2,
       startsAt: iso(daysAgo(10, 0)),
       endsAt: iso(daysAgo(-20, 23)),
-      status: 'ACTIVE',
-      createdById: 1,
-      deletedAt: null,
     },
     {
+      ...manual,
       id: 2,
       name: '+100 puntos en Farmacorp',
       type: 'FIXED_POINTS',
       value: 100,
       startsAt: iso(daysAgo(10, 0)),
       endsAt: iso(daysAgo(-20, 23)),
-      status: 'ACTIVE',
-      createdById: 1,
-      deletedAt: null,
     },
     {
+      ...manual,
       id: 3,
       name: 'Feria del Descuento de Urkupiña: puntos ×1,5 en moda',
       type: 'POINTS_MULTIPLIER',
       value: 1.5,
       startsAt: URKUPINA_FAIR.start,
       endsAt: URKUPINA_FAIR.end,
-      status: 'ACTIVE',
-      createdById: 1,
-      deletedAt: null,
     },
   )
   db.promotionCategories.push({ promotionId: 1, categoryId: 2 }, { promotionId: 3, categoryId: 4 })
@@ -457,6 +493,40 @@ export function buildDemoDatabase(): Database {
 
   checkInEvent(db, { eventId: 1, customerId: 2 }, 1, new Date('2026-08-01T17:30:00-04:00'))
   checkInEvent(db, { eventId: 1, customerId: 6 }, 1, new Date('2026-08-02T18:10:00-04:00'))
+
+  buy(jimena.id, 3, [['Jeans clásicos', 1]], daysAgo(52))
+  buy(jimena.id, 12, [['Pijama de algodón', 1]], daysAgo(45))
+
+  // Spaces of the Paseo with a fixed QR (`PASEO-ESPACIO:<code>`), printed by the admin.
+  const space = (id: number, name: string, description: string, location: string, code: string, pointsReward: number, statusReward: number) =>
+    db.spaces.push({ id, name, description, location, code, pointsReward, statusReward, status: 'ACTIVE', createdById: 1, createdAt: created, deletedAt: null })
+  space(1, 'Galería de Arte', 'Muestras de artistas cochabambinos que cambian cada mes.', 'Piso 2, ala sur', 'GAL7K2QX', 20, 30)
+  space(2, 'Experience Store', 'Activaciones de marca, lanzamientos y experiencias.', 'Planta baja', 'EXP4M9TR', 15, 25)
+  space(3, 'Mirador El 4to', 'Terraza con vista al Tunari.', 'El 4to, terraza', 'MIR8P3VW', 15, 25)
+  checkInSpace(db, 2, 'GAL7K2QX', daysAgo(20, 17))
+  checkInSpace(db, 2, 'EXP4M9TR', daysAgo(3, 18))
+  checkInSpace(db, 6, 'MIR8P3VW', daysAgo(6, 19))
+
+  // Ruleta: every points prize is worth at least the spin cost (50), so a spin never loses points.
+  const prize = (id: number, fields: Partial<SpinPrize> & Pick<SpinPrize, 'type' | 'weight'>) =>
+    db.spinPrizes.push({ id, points: null, multiplier: null, rewardId: null, validDays: 7, stock: null, status: 'ACTIVE', createdById: 1, deletedAt: null, ...fields })
+  prize(1, { type: 'POINTS', points: 60, weight: 40 })
+  prize(2, { type: 'POINTS', points: 100, weight: 20 })
+  prize(3, { type: 'POINTS', points: 250, weight: 5 })
+  prize(4, { type: 'MULTIPLIER', multiplier: 2, weight: 15 })
+  prize(5, { type: 'REWARD', rewardId: 2, weight: 8, stock: 50 })
+  prize(6, { type: 'REWARD', rewardId: 1, weight: 7, stock: 50, validDays: 5 })
+  prize(7, { type: 'EXTRA_SPIN', weight: 5 })
+
+  // Birthday gift each business gives every verified birthday customer with a purchase that day.
+  const perk = (businessId: number, fields: Partial<BirthdayPerk> & Pick<BirthdayPerk, 'type'>) =>
+    db.birthdayPerks.push({ businessId, discountPercent: null, discountAmount: null, catalogItemId: null, quantity: 1, description: null, isActive: true, updatedAt: created, ...fields })
+  perk(1, { type: 'FREE_PRODUCT', catalogItemId: catalogId(1, 'Gelato 2 bolas') })
+  perk(2, { type: 'FREE_PRODUCT', catalogItemId: catalogId(2, 'Pizza personal') })
+  perk(3, { type: 'PERCENT_DISCOUNT', discountPercent: 50, description: 'En una prenda a elección.' })
+  perk(4, { type: 'PERCENT_DISCOUNT', discountPercent: 20 })
+  perk(7, { type: 'FREE_PRODUCT', catalogItemId: catalogId(7, 'MiniBon') })
+  perk(11, { type: 'AMOUNT_DISCOUNT', discountAmount: 50, description: 'En consumos desde Bs 150.' })
 
   return db
 }

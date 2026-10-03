@@ -37,6 +37,15 @@ export function addDaysKey(dateKey: string, days: number): string {
   return new Date(Date.parse(`${dateKey}T12:00:00.000Z`) + days * 86_400_000).toISOString().slice(0, 10)
 }
 
+/** Same day `months` later; clamps to the last day when it doesn't exist (31-ene + 1 = 28/29-feb). */
+export function addMonthsKey(dateKey: string, months: number): string {
+  const [y, m, d] = dateKey.split('-').map(Number)
+  const target = new Date(Date.UTC(y, m - 1 + months, 1))
+  const lastDay = new Date(Date.UTC(target.getUTCFullYear(), target.getUTCMonth() + 1, 0)).getUTCDate()
+  target.setUTCDate(Math.min(d, lastDay))
+  return target.toISOString().slice(0, 10)
+}
+
 /** Calendar days from `from` to `to`, both included. */
 export function daysBetweenKeys(from: string, to: string): number {
   return Math.round((Date.parse(`${to}T12:00:00.000Z`) - Date.parse(`${from}T12:00:00.000Z`)) / 86_400_000) + 1

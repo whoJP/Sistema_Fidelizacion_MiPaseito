@@ -7,6 +7,7 @@ import { formatDateTime, formatInt, fromLocalInput, fullName, toLocalInput } fro
 import type { EventStatus, PaseoEvent } from '../../types/domain'
 import { Badge, Card, Empty, Field, Modal, notify, run, vanish } from '../../components/ui'
 import { confirmDialog } from '../../components/dialog'
+import { LIMITS, MAX_REWARD_POINTS } from '../../domain/validation'
 import { ScanOrCode } from '../../components/ScanOrCode'
 import { WindowFields, draftWindowError } from '../../components/WindowFields'
 import { AdminHeader, FormActions } from './shared'
@@ -239,17 +240,25 @@ export function AdminEvents() {
         <Modal title={draft.id ? 'Editar evento' : 'Nuevo evento'} onClose={() => setDraft(null)} wide>
           <form className="stack" onSubmit={save}>
             <Field label="Nombre del evento" hint="También es el nombre de la insignia que recibirán los asistentes.">
-              <input required value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} />
+              <input required maxLength={LIMITS.name} value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} />
             </Field>
             <Field label="Descripción corta">
-              <textarea rows={2} value={draft.description} onChange={(e) => setDraft({ ...draft, description: e.target.value })} />
+              <textarea rows={2} maxLength={LIMITS.description} value={draft.description} onChange={(e) => setDraft({ ...draft, description: e.target.value })} />
             </Field>
             <div className="grid-2">
               <Field label="Lugar" hint="Ej. Plaza central, Piso 2">
-                <input value={draft.location} onChange={(e) => setDraft({ ...draft, location: e.target.value })} />
+                <input maxLength={LIMITS.location} value={draft.location} onChange={(e) => setDraft({ ...draft, location: e.target.value })} />
               </Field>
               <Field label="Puntos por asistir">
-                <input type="number" min={0} step={1} required value={draft.pointsReward} onChange={(e) => setDraft({ ...draft, pointsReward: e.target.value })} />
+                <input
+                  type="number"
+                  min={0}
+                  max={MAX_REWARD_POINTS}
+                  step={1}
+                  required
+                  value={draft.pointsReward}
+                  onChange={(e) => setDraft({ ...draft, pointsReward: e.target.value })}
+                />
               </Field>
             </div>
             <WindowFields value={draft} onChange={(w) => setDraft({ ...draft, ...w })} previous={editing} required />

@@ -66,6 +66,10 @@ enum PointMovementType {
   REDEMPTION
   ADJUSTMENT
   REVERSAL
+  CHECK_IN
+  SPIN
+  BIRTHDAY
+  EXPIRATION
 }
 
 enum StatusMovementType {
@@ -74,6 +78,8 @@ enum StatusMovementType {
   DISCOVERY
   STREAK
   ADJUSTMENT
+  WELCOME
+  CHECK_IN
 }
 
 enum RewardType {
@@ -93,6 +99,12 @@ enum RedemptionStatus {
   REDEEMED
   EXPIRED
   CANCELLED
+}
+
+enum RedemptionOrigin {
+  POINTS
+  PRIZE
+  BIRTHDAY
 }
 
 enum MissionType {
@@ -122,6 +134,14 @@ enum PromotionStatus {
   INACTIVE
 }
 
+enum PromotionOrigin {
+  MANUAL
+  REACTIVATION
+  ANNIVERSARY
+  VISIT_CARD
+  PRIZE
+}
+
 enum EventStatus {
   DRAFT
   ACTIVE
@@ -147,6 +167,7 @@ enum FraudAlertType {
   REUSED_REDEMPTION
   HIGH_FREQUENCY
   ABNORMAL_AMOUNT
+  CHECK_IN_ONLY
 }
 
 enum FraudAlertStatus {
@@ -156,6 +177,35 @@ enum FraudAlertStatus {
 }
 
 enum CancellationRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum SpaceStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum SpinSource {
+  DAILY
+  EXTRA
+  FREE
+}
+
+enum SpinPrizeType {
+  POINTS
+  MULTIPLIER
+  REWARD
+  EXTRA_SPIN
+}
+
+enum SpinPrizeStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum KycStatus {
   PENDING
   APPROVED
   REJECTED
@@ -188,7 +238,8 @@ model User {
   validatedRedemptions   Redemption[]          @relation("RedemptionValidatedBy")
   createdRewards         Reward[]
   createdMissions        Mission[]
-  createdPromotions      Promotion[]
+  createdPromotions      Promotion[]           @relation("PromotionCreatedBy")
+  personalPromotions     Promotion[]           @relation("PromotionAudience")
   createdEvents          Event[]
   createdBadges          Badge[]
   missionProgress        MissionProgress[]
@@ -199,6 +250,15 @@ model User {
   requestedCancellations CancellationRequest[] @relation("CancellationRequestedBy")
   reviewedCancellations  CancellationRequest[] @relation("CancellationReviewedBy")
   notifications          Notification[]
+  createdSpaces          Space[]
+  spaceCheckIns          SpaceCheckIn[]
+  createdSpinPrizes      SpinPrize[]
+  spins                  Spin[]
+  kycRequests            KycRequest[]          @relation("KycRequestUser")
+  reviewedKycRequests    KycRequest[]          @relation("KycRequestReviewedBy")
+  birthdayClaims         BirthdayClaim[]       @relation("BirthdayClaimUser")
+  validatedBirthdays     BirthdayClaim[]       @relation("BirthdayClaimValidatedBy")
+  idempotencyKeys        IdempotencyKey[]
 }
 
 model Business {
@@ -215,16 +275,18 @@ model Business {
   updatedAt   DateTime       @updatedAt
   deletedAt   DateTime?
 
-  schedules    BusinessSchedule[]
-  members      BusinessMember[]
-  categories   BusinessCategory[]
-  catalogItems CatalogItem[]
-  transactions Transaction[]
-  redemptions  Redemption[]
-  rewards      Reward[]
-  missions     MissionBusiness[]
-  promotions   PromotionBusiness[]
-  discoveries  BusinessDiscovery[]
+  schedules      BusinessSchedule[]
+  members        BusinessMember[]
+  categories     BusinessCategory[]
+  catalogItems   CatalogItem[]
+  transactions   Transaction[]
+  redemptions    Redemption[]
+  rewards        Reward[]
+  missions       MissionBusiness[]
+  promotions     PromotionBusiness[]
+  discoveries    BusinessDiscovery[]
+  birthdayPerk   BirthdayPerk?
+  birthdayClaims BirthdayClaim[]
 }
 
 model BusinessSchedule {
@@ -297,6 +359,7 @@ model CatalogItem {
   business         Business          @relation(fields: [businessId], references: [id], onDelete: Restrict)
   rewards          Reward[]
   transactionItems TransactionItem[]
+  birthdayPerks    BirthdayPerk[]
 
   @@index([businessId])
 }
@@ -335,6 +398,8 @@ model Transaction {
   fraudAlerts          FraudAlert[]
   items                TransactionItem[]
   cancellationRequests CancellationRequest[]
+  unlockedSpin         Spin?
+  birthdayClaims       BirthdayClaim[]
 
   @@index([customerId])
   @@index([businessId])
@@ -387,16 +452,20 @@ model PointMovement {
   missionId     Int?
   promotionId   Int?
   eventId       Int?
+  checkInId     Int?
+  spinId        Int?
   type          PointMovementType
   amount        Int
   createdAt     DateTime          @default(now())
 
-  user        User         @relation(fields: [userId], references: [id], onDelete: Restrict)
-  transaction Transaction? @relation(fields: [transactionId], references: [id], onDelete: Restrict)
-  redemption  Redemption?  @relation(fields: [redemptionId], references: [id], onDelete: Restrict)
-  mission     Mission?     @relation(fields: [missionId], references: [id], onDelete: Restrict)
-  promotion   Promotion?   @relation(fields: [promotionId], references: [id], onDelete: Restrict)
-  event       Event?       @relation(fields: [eventId], references: [id], onDelete: Restrict)
+  user        User          @relation(fields: [userId], references: [id], onDelete: Restrict)
+  transaction Transaction?  @relation(fields: [transactionId], references: [id], onDelete: Restrict)
+  redemption  Redemption?   @relation(fields: [redemptionId], references: [id], onDelete: Restrict)
+  mission     Mission?      @relation(fields: [missionId], references: [id], onDelete: Restrict)
+  promotion   Promotion?    @relation(fields: [promotionId], references: [id], onDelete: Restrict)
+  event       Event?        @relation(fields: [eventId], references: [id], onDelete: Restrict)
+  checkIn     SpaceCheckIn? @relation(fields: [checkInId], references: [id], onDelete: Restrict)
+  spin        Spin?         @relation(fields: [spinId], references: [id], onDelete: Restrict)
 
   @@index([userId])
   @@index([createdAt])
@@ -405,6 +474,8 @@ model PointMovement {
   @@index([missionId])
   @@index([promotionId])
   @@index([eventId])
+  @@index([checkInId])
+  @@index([spinId])
 }
 
 model StatusMovement {
@@ -412,17 +483,20 @@ model StatusMovement {
   userId        Int
   transactionId Int?
   missionId     Int?
+  checkInId     Int?
   type          StatusMovementType
   amount        Int
   createdAt     DateTime           @default(now())
 
-  user        User         @relation(fields: [userId], references: [id], onDelete: Restrict)
-  transaction Transaction? @relation(fields: [transactionId], references: [id], onDelete: Restrict)
-  mission     Mission?     @relation(fields: [missionId], references: [id], onDelete: Restrict)
+  user        User          @relation(fields: [userId], references: [id], onDelete: Restrict)
+  transaction Transaction?  @relation(fields: [transactionId], references: [id], onDelete: Restrict)
+  mission     Mission?      @relation(fields: [missionId], references: [id], onDelete: Restrict)
+  checkIn     SpaceCheckIn? @relation(fields: [checkInId], references: [id], onDelete: Restrict)
 
   @@index([userId])
   @@index([transactionId])
   @@index([missionId])
+  @@index([checkInId])
 }
 
 // ==================================================
@@ -455,6 +529,7 @@ model Reward {
   createdBy   User         @relation(fields: [createdById], references: [id], onDelete: Restrict)
 
   redemptions Redemption[]
+  spinPrizes  SpinPrize[]
 
   @@index([businessId])
   @@index([catalogItemId])
@@ -462,6 +537,7 @@ model Reward {
   @@index([createdById])
 }
 
+/// `origin` POINTS = paid with points (code valid for minutes); PRIZE (ruleta) and BIRTHDAY are free and valid until `expiresAt`.
 model Redemption {
   id                Int              @id @default(autoincrement())
   userId            Int
@@ -471,6 +547,8 @@ model Redemption {
   pointsSpent       Int
   verificationToken String           @unique @db.VarChar(191)
   status            RedemptionStatus @default(PENDING)
+  origin            RedemptionOrigin @default(POINTS)
+  expiresAt         DateTime?
   createdAt         DateTime         @default(now())
   redeemedAt        DateTime?
 
@@ -481,6 +559,7 @@ model Redemption {
 
   pointMovements PointMovement[]
   fraudAlerts    FraudAlert[]
+  spin           Spin?
 
   @@index([userId])
   @@index([rewardId])
@@ -500,6 +579,8 @@ model Mission {
   goal         Int
   rewardPoints Int
   rewardStatus Int
+  /// Free ruleta spins granted on completion (the "recompensa sorpresa").
+  rewardSpins  Int           @default(0)
   startsAt     DateTime
   endsAt       DateTime
   status       MissionStatus @default(DRAFT)
@@ -568,6 +649,8 @@ model BusinessDiscovery {
 // PROMOTIONS
 // ==================================================
 
+/// `userId` null = for every customer. Personal promotions (`userId` set) are created automatically
+/// (reactivation, membership anniversary, visit card, ruleta prize); `singleUse` ones apply to one purchase only.
 model Promotion {
   id          Int             @id @default(autoincrement())
   name        String          @db.VarChar(150)
@@ -576,16 +659,22 @@ model Promotion {
   startsAt    DateTime
   endsAt      DateTime
   status      PromotionStatus @default(DRAFT)
+  userId      Int?
+  origin      PromotionOrigin @default(MANUAL)
+  singleUse   Boolean         @default(false)
   createdById Int
   deletedAt   DateTime?
 
-  createdBy User @relation(fields: [createdById], references: [id], onDelete: Restrict)
+  createdBy User  @relation("PromotionCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  user      User? @relation("PromotionAudience", fields: [userId], references: [id], onDelete: Restrict)
 
   businesses     PromotionBusiness[]
   categories     PromotionCategory[]
   pointMovements PointMovement[]
+  spins          Spin[]
 
   @@index([createdById])
+  @@index([userId])
 }
 
 model PromotionBusiness {
@@ -681,17 +770,20 @@ model FraudAlert {
   id            Int              @id @default(autoincrement())
   transactionId Int?
   redemptionId  Int?
+  checkInId     Int?
   type          FraudAlertType
   riskScore     Int
   status        FraudAlertStatus @default(OPEN)
   createdAt     DateTime         @default(now())
 
-  transaction Transaction? @relation(fields: [transactionId], references: [id], onDelete: Restrict)
-  redemption  Redemption?  @relation(fields: [redemptionId], references: [id], onDelete: Restrict)
+  transaction Transaction?  @relation(fields: [transactionId], references: [id], onDelete: Restrict)
+  redemption  Redemption?   @relation(fields: [redemptionId], references: [id], onDelete: Restrict)
+  checkIn     SpaceCheckIn? @relation(fields: [checkInId], references: [id], onDelete: Restrict)
 
   @@index([status])
   @@index([transactionId])
   @@index([redemptionId])
+  @@index([checkInId])
 }
 
 model AuditLog {
@@ -725,4 +817,188 @@ model SystemSetting {
   key       String   @id @db.VarChar(100)
   value     String   @db.VarChar(255)
   updatedAt DateTime @updatedAt
+}
+
+/// Result of a write sent with an `Idempotency-Key` header: a retry with the same key gets this result instead of
+/// running again. Stored in the same transaction as the write; outside the app snapshot; purged after 24 h.
+model IdempotencyKey {
+  userId      Int
+  key         String   @db.VarChar(100)
+  /// Route or command the key was used for, e.g. `command:registerPurchase`.
+  endpoint    String   @db.VarChar(100)
+  /// SHA-256 of the request body: the same key with a different body is rejected.
+  requestHash String   @db.Char(64)
+  response    Json
+  createdAt   DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, key])
+  @@index([createdAt])
+}
+
+// ==================================================
+// SPACES, RULETA, BIRTHDAYS
+// ==================================================
+
+/// A place of the Paseo managed by the admin (Galería de Arte, Experience Store…) with a fixed printed QR.
+/// Scanning it grants `pointsReward` and `statusReward` once per customer and day.
+model Space {
+  id           Int         @id @default(autoincrement())
+  name         String      @db.VarChar(150)
+  description  String?     @db.Text
+  location     String?     @db.VarChar(150)
+  /// Content of the printed QR; regenerating it invalidates copies.
+  code         String      @unique @db.VarChar(20)
+  pointsReward Int         @default(0)
+  statusReward Int         @default(0)
+  status       SpaceStatus @default(ACTIVE)
+  createdById  Int
+  createdAt    DateTime    @default(now())
+  deletedAt    DateTime?
+
+  createdBy User           @relation(fields: [createdById], references: [id], onDelete: Restrict)
+  checkIns  SpaceCheckIn[]
+
+  @@index([createdById])
+}
+
+model SpaceCheckIn {
+  id        Int      @id @default(autoincrement())
+  spaceId   Int
+  userId    Int
+  /// Bolivian calendar day `YYYY-MM-DD`.
+  day       String   @db.Char(10)
+  createdAt DateTime @default(now())
+
+  space           Space            @relation(fields: [spaceId], references: [id], onDelete: Restrict)
+  user            User             @relation(fields: [userId], references: [id], onDelete: Restrict)
+  pointMovements  PointMovement[]
+  statusMovements StatusMovement[]
+  fraudAlerts     FraudAlert[]
+
+  @@unique([spaceId, userId, day])
+  @@index([userId])
+}
+
+/// A slice of the ruleta. The draw is weighted by `weight`; POINTS prizes are never worth less than the spin cost.
+model SpinPrize {
+  id          Int             @id @default(autoincrement())
+  type        SpinPrizeType
+  points      Int?
+  multiplier  Decimal?        @db.Decimal(4, 2)
+  rewardId    Int?
+  /// Days a MULTIPLIER or REWARD prize stays usable.
+  validDays   Int             @default(7)
+  weight      Int
+  stock       Int?
+  status      SpinPrizeStatus @default(ACTIVE)
+  createdById Int
+  deletedAt   DateTime?
+
+  reward    Reward? @relation(fields: [rewardId], references: [id], onDelete: Restrict)
+  createdBy User    @relation(fields: [createdById], references: [id], onDelete: Restrict)
+  spins     Spin[]
+
+  @@index([rewardId])
+  @@index([createdById])
+}
+
+/// One ruleta draw, decided on the server. DAILY costs points (once a day); EXTRA is unlocked by a purchase
+/// (`unlockTransactionId`); FREE uses a spin earned with the visit card, missions, level milestones or prizes.
+model Spin {
+  id                  Int           @id @default(autoincrement())
+  userId              Int
+  source              SpinSource
+  cost                Int           @default(0)
+  prizeId             Int
+  prizeType           SpinPrizeType
+  points              Int           @default(0)
+  promotionId         Int?
+  redemptionId        Int?          @unique
+  unlockTransactionId Int?          @unique
+  createdAt           DateTime      @default(now())
+
+  user              User            @relation(fields: [userId], references: [id], onDelete: Restrict)
+  prize             SpinPrize       @relation(fields: [prizeId], references: [id], onDelete: Restrict)
+  promotion         Promotion?      @relation(fields: [promotionId], references: [id], onDelete: Restrict)
+  redemption        Redemption?     @relation(fields: [redemptionId], references: [id], onDelete: Restrict)
+  unlockTransaction Transaction?    @relation(fields: [unlockTransactionId], references: [id], onDelete: Restrict)
+  pointMovements    PointMovement[]
+
+  @@index([userId])
+  @@index([prizeId])
+  @@index([promotionId])
+}
+
+/// Birthday verification: the customer sends the birth date and a photo of the ID card (kept apart in KycDocument).
+/// `User.birthDate` is only written when the admin approves.
+model KycRequest {
+  id           Int       @id @default(autoincrement())
+  userId       Int
+  birthDate    DateTime  @db.Date
+  status       KycStatus @default(PENDING)
+  reviewedById Int?
+  reviewNote   String?   @db.Text
+  createdAt    DateTime  @default(now())
+  reviewedAt   DateTime?
+
+  user       User         @relation("KycRequestUser", fields: [userId], references: [id], onDelete: Restrict)
+  reviewedBy User?        @relation("KycRequestReviewedBy", fields: [reviewedById], references: [id], onDelete: Restrict)
+  document   KycDocument?
+
+  @@index([userId])
+  @@index([status])
+  @@index([reviewedById])
+}
+
+/// ID card photo of a KycRequest. Outside the app snapshot: only admins can fetch it and it is deleted once reviewed.
+model KycDocument {
+  requestId Int      @id
+  mimeType  String   @db.VarChar(50)
+  data      Bytes    @db.MediumBlob
+  createdAt DateTime @default(now())
+
+  request KycRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+}
+
+/// The standard gift a business gives every verified customer on their birthday, after a purchase there that day.
+model BirthdayPerk {
+  businessId      Int        @id
+  type            RewardType
+  discountPercent Int?
+  discountAmount  Decimal?   @db.Decimal(10, 2)
+  catalogItemId   Int?
+  quantity        Int        @default(1)
+  description     String?    @db.Text
+  isActive        Boolean    @default(true)
+  updatedAt       DateTime   @updatedAt
+
+  business    Business     @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  catalogItem CatalogItem? @relation(fields: [catalogItemId], references: [id], onDelete: Restrict)
+
+  @@index([catalogItemId])
+}
+
+/// A birthday gift delivered at a business: once per customer, business and year, tied to that day's purchase.
+model BirthdayClaim {
+  id            Int      @id @default(autoincrement())
+  userId        Int
+  businessId    Int
+  year          Int
+  transactionId Int
+  validatedById Int
+  /// Gift as it was described when delivered.
+  perkTitle     String   @db.VarChar(255)
+  createdAt     DateTime @default(now())
+
+  user        User        @relation("BirthdayClaimUser", fields: [userId], references: [id], onDelete: Restrict)
+  business    Business    @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  transaction Transaction @relation(fields: [transactionId], references: [id], onDelete: Restrict)
+  validatedBy User        @relation("BirthdayClaimValidatedBy", fields: [validatedById], references: [id], onDelete: Restrict)
+
+  @@unique([userId, businessId, year])
+  @@index([businessId])
+  @@index([transactionId])
+  @@index([validatedById])
 }

@@ -1,7 +1,9 @@
 import { useState, type FormEvent } from 'react'
 import { ApiError, api } from '../../data/api'
 import { useDb } from '../../data/store'
+import { SETTING_RANGES } from '../../data/actions'
 import { SETTING_DEFAULTS, type SettingKey } from '../../domain/loyalty'
+import { rangeError } from '../../domain/validation'
 import { formatInt, formatMoney } from '../../lib/format'
 import { signOut } from '../../session'
 import { Card, Field, PageHeader, notify, run } from '../../components/ui'
@@ -10,7 +12,12 @@ import { SETTINGS } from './settingsInfo'
 
 const GROUPS: { title: string; keys: SettingKey[] }[] = [
   { title: 'Cuánto se gana por comprar', keys: ['POINTS_BASE_RATE', 'STATUS_BASE_RATE'] },
-  { title: 'Premios por visitar el Paseo', keys: ['DISCOVERY_STATUS_BONUS', 'STREAK_STATUS_BONUS'] },
+  { title: 'Premios por visitar el Paseo', keys: ['DISCOVERY_STATUS_BONUS', 'STREAK_STATUS_BONUS', 'WELCOME_STATUS_BONUS'] },
+  { title: 'Tarjeta de visitas', keys: ['VISIT_CARD_SIZE', 'VISIT_CARD_GIFT_STAMPS', 'VISIT_CARD_MULTIPLIER', 'VISIT_CARD_VALID_DAYS'] },
+  { title: 'Ruleta', keys: ['SPIN_COST', 'SPIN_EXTRA_MIN_PURCHASE', 'SPIN_EXTRA_DAILY_MAX', 'SPIN_MILESTONE_STATUS'] },
+  { title: 'Cumpleaños', keys: ['BIRTHDAY_BONUS_POINTS', 'BIRTHDAY_REWARD_MAX_POINTS'] },
+  { title: 'Vencimiento de puntos', keys: ['POINTS_EXPIRATION_MONTHS', 'POINTS_EXPIRATION_NOTICE_DAYS'] },
+  { title: 'Clientes dormidos y aniversarios', keys: ['REACTIVATION_DAYS', 'AUTO_PROMO_MULTIPLIER', 'AUTO_PROMO_DAYS'] },
   { title: 'Canjes y seguridad', keys: ['REDEMPTION_EXPIRATION_MINUTES', 'ABNORMAL_AMOUNT_THRESHOLD'] },
 ]
 
@@ -20,15 +27,16 @@ export function AdminSettings() {
   const current = (key: SettingKey) => db.systemSettings.find((s) => s.key === key)?.value ?? SETTING_DEFAULTS[key]
   const [values, setValues] = useState<Record<string, string>>(() => Object.fromEntries(keys.map((k) => [k, current(k)])))
   const changed = keys.filter((k) => values[k] !== current(k))
+  const problem = (key: SettingKey) => {
+    if (values[key] === current(key)) return null
+    const value = (values[key] ?? '').trim()
+    return rangeError(value === '' ? NaN : Number(value), 'El valor', ...SETTING_RANGES[key])
+  }
+  const invalid = changed.find((k) => problem(k))
 
   const save = async (e: FormEvent) => {
     e.preventDefault()
-    for (const key of changed) {
-      const value = values[key]?.trim()
-      if (!value || Number.isNaN(Number(value)) || Number(value) < 0) {
-        return notify('error', `"${SETTINGS[key].label}" debe ser un número mayor o igual a 0`)
-      }
-    }
+    if (invalid) return notify('error', `"${SETTINGS[invalid].label}": ${problem(invalid)}`)
     for (const key of changed) {
       if (!(await run('saveSetting', { key, value: values[key].trim() }))) return
     }
@@ -64,11 +72,13 @@ export function AdminSettings() {
             <h2>{group.title}</h2>
             <div className="grid-2">
               {group.keys.map((key) => (
-                <Field key={key} label={SETTINGS[key].label} hint={SETTINGS[key].hint}>
+                <Field key={key} label={SETTINGS[key].label} hint={SETTINGS[key].hint} error={problem(key)}>
                   <div className="input-unit">
                     <input
                       type="number"
-                      min={0}
+                      required
+                      min={SETTING_RANGES[key][0]}
+                      max={SETTING_RANGES[key][1]}
                       step={SETTINGS[key].step}
                       value={values[key] ?? ''}
                       onChange={(e) => setValues({ ...values, [key]: e.target.value })}
@@ -92,7 +102,7 @@ export function AdminSettings() {
                 Descartar
               </button>
             )}
-            <button className="btn btn-primary" type="submit" disabled={changed.length === 0}>
+            <button className="btn btn-primary" type="submit" disabled={changed.length === 0 || !!invalid}>
               Guardar cambios
             </button>
           </div>

@@ -14,6 +14,7 @@ const WHY: Record<FraudAlertType, string> = {
   ABNORMAL_AMOUNT: 'El monto supera el límite fijado en Configuración. Los puntos quedan retenidos.',
   HIGH_FREQUENCY: 'Más de 5 compras del mismo cliente en una hora. Solo es un aviso: los puntos ya se acreditaron.',
   REUSED_REDEMPTION: 'Se intentó usar un código de canje que ya fue usado.',
+  CHECK_IN_ONLY: 'El cliente registra visitas a espacios pero nunca compró. Solo es un aviso: los puntos ya se acreditaron.',
 }
 
 const riskTone = (score: number) => (score >= 80 ? 'danger' : score >= 60 ? 'warning' : 'neutral')

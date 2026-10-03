@@ -5,6 +5,7 @@ import { ApiError, api, type SessionPayload } from '../data/api'
 import { DEMO_ACCOUNTS, DEMO_PASSWORD } from '../data/demoAccounts'
 import { signIn, signOut, useSession } from '../session'
 import { Field, Toaster, notify } from '../components/ui'
+import { LIMITS, emailError, passwordError, personNameError, phoneError } from '../domain/validation'
 import { BrandMark, ClubGem } from '../components/BrandMark'
 import { DialogHost, confirmDialog } from '../components/dialog'
 
@@ -43,7 +44,15 @@ export function LoginPage() {
 
   const onSubmit = (e: FormEvent) => {
     e.preventDefault()
+    if (busy) return
     if (mode === 'login') return attempt(() => api.login(email, password))
+    const problem =
+      emailError(email) ??
+      personNameError(form.firstName, 'El nombre') ??
+      personNameError(form.lastName, 'El apellido') ??
+      phoneError(form.phone) ??
+      passwordError(password)
+    if (problem) return notify('error', problem)
     return attempt(() => api.register({ email, password, ...form }), 'Bienvenido a Paseo Club')
   }
 
@@ -168,6 +177,7 @@ export function LoginPage() {
             <input
               type="email"
               required
+              maxLength={LIMITS.email}
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               autoComplete="email"
@@ -180,21 +190,30 @@ export function LoginPage() {
           {mode === 'register' && (
             <div className="grid-2">
               <Field label="Nombre">
-                <input required value={form.firstName} onChange={(e) => setForm({ ...form, firstName: e.target.value })} autoComplete="given-name" />
+                <input required maxLength={LIMITS.personName} value={form.firstName} onChange={(e) => setForm({ ...form, firstName: e.target.value })} autoComplete="given-name" />
               </Field>
               <Field label="Apellido">
-                <input required value={form.lastName} onChange={(e) => setForm({ ...form, lastName: e.target.value })} autoComplete="family-name" />
+                <input required maxLength={LIMITS.personName} value={form.lastName} onChange={(e) => setForm({ ...form, lastName: e.target.value })} autoComplete="family-name" />
               </Field>
-              <Field label="Teléfono (opcional)">
-                <input type="tel" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} autoComplete="tel" />
+              <Field label="Teléfono (opcional)" error={phoneError(form.phone)}>
+                <input
+                  type="tel"
+                  inputMode="tel"
+                  maxLength={LIMITS.phone}
+                  placeholder="+591 7xx xxxxx"
+                  value={form.phone}
+                  onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                  autoComplete="tel"
+                />
               </Field>
             </div>
           )}
-          <Field label="Contraseña" hint={mode === 'register' ? 'Mínimo 6 caracteres.' : undefined}>
+          <Field label="Contraseña" hint={mode === 'register' ? `Mínimo ${LIMITS.passwordMin} caracteres, con letras y números.` : undefined}>
             <input
               type="password"
               required
-              minLength={mode === 'register' ? 6 : undefined}
+              minLength={mode === 'register' ? LIMITS.passwordMin : undefined}
+              maxLength={LIMITS.passwordMax}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               autoComplete={mode === 'login' ? 'current-password' : 'new-password'}

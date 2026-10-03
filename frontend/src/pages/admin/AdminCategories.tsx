@@ -4,6 +4,7 @@ import { plural } from '../../lib/format'
 import type { Category } from '../../types/domain'
 import { Card, Empty, Field, Modal, notify, run, vanish } from '../../components/ui'
 import { confirmDialog } from '../../components/dialog'
+import { LIMITS } from '../../domain/validation'
 import { AdminHeader, FormActions, StatusBadge } from './shared'
 
 type Draft = { id: number | null; name: string; parentId: number | null; status: Category['status'] }
@@ -84,7 +85,7 @@ export function AdminCategories() {
         <Modal title={draft.id ? 'Editar categoría' : 'Nueva categoría'} onClose={() => setDraft(null)}>
           <form className="stack" onSubmit={save}>
             <Field label="Nombre">
-              <input required value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} autoFocus />
+              <input required maxLength={LIMITS.categoryName} value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} autoFocus />
             </Field>
             <Field label="Categoría padre">
               <select

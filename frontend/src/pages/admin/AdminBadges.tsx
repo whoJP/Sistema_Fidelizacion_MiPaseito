@@ -4,7 +4,8 @@ import { badgeProgress } from '../../domain/loyalty'
 import { BADGE_TYPE_LABELS, formatDateKey, formatInt } from '../../lib/format'
 import type { Badge as BadgeDef, BadgeStatus, BadgeType, Database } from '../../types/domain'
 import { BadgeMedal } from '../../components/BadgeMedal'
-import { Card, Empty, Field, Modal, run } from '../../components/ui'
+import { Card, Empty, Field, Modal, run, vanish } from '../../components/ui'
+import { confirmDialog } from '../../components/dialog'
 import { AdminHeader, FormActions, StatusBadge, liveCategoryOptions } from './shared'
 
 interface Draft {
@@ -132,7 +133,7 @@ export function AdminBadges() {
                           </td>
                           <td className="small">{requirement(db, b)}</td>
                           <td className="num">
-                            {formatInt(holders.get(b.id) ?? 0)} / {formatInt(customers.length)}
+                            {formatInt(holders.get(b.id) ?? 0)} de {formatInt(customers.length)}
                           </td>
                           <td>
                             <StatusBadge status={b.status} />
@@ -143,7 +144,16 @@ export function AdminBadges() {
                             </button>
                             <button
                               className="btn btn-ghost btn-sm danger"
-                              onClick={() => confirm(`¿Eliminar "${b.name}"? Desaparecerá del perfil de todos los clientes.`) && run('softDelete', { table: 'badges', id: b.id }, 'Insignia eliminada')}
+                              onClick={async (e) => {
+                                const row = e.currentTarget
+                                const ok = await confirmDialog({
+                                  title: `¿Eliminar "${b.name}"?`,
+                                  message: 'Desaparecerá del perfil de todos los clientes que la ganaron.',
+                                  confirmLabel: 'Eliminar',
+                                  tone: 'danger',
+                                })
+                                if (ok) void vanish(row, () => run('softDelete', { table: 'badges', id: b.id }, 'Insignia eliminada'))
+                              }}
                             >
                               Eliminar
                             </button>

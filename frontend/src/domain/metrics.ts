@@ -375,7 +375,7 @@ export function summaryCsv(m: Metrics): string {
   const pct = (n: number) => `${(n * 100).toFixed(1).replace('.', ',')} %`
   const c = m.current
   return toCsv([
-    ['Métricas Paseo Points', `${m.period.from} a ${m.period.to}`],
+    ['Métricas Paseo Club', `${m.period.from} a ${m.period.to}`],
     [],
     ['Indicador', 'Valor'],
     ['Ventas registradas (Bs)', c.sales],

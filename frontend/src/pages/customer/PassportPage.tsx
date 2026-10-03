@@ -22,7 +22,7 @@ export function PassportPage() {
       <PageHeader title="Pasaporte del Paseo" subtitle="Tu primera compra en cada establecimiento lo sella en tu pasaporte y te da puntos de nivel extra." />
 
       <div className="stats-row">
-        <Stat label="Establecimientos descubiertos" value={`${discovered.size} / ${businesses.length}`} />
+        <Stat label="Locales descubiertos" value={`${discovered.size} de ${businesses.length}`} />
         <Stat label="Categorías exploradas" value={exploredCategories.size} />
         <Stat label="Por descubrir" value={businesses.length - [...discovered].filter((id) => businesses.some((b) => b.id === id)).length} />
       </div>
@@ -35,8 +35,8 @@ export function PassportPage() {
               <li key={p.category.id} className="mission-mini">
                 <div className="row between">
                   <strong>{p.category.name}</strong>
-                  <span className="small muted">
-                    {p.discovered}/{p.total}
+                  <span className="small muted tabular">
+                    {p.discovered} de {p.total}
                   </span>
                 </div>
                 <Progress value={p.discovered} max={p.total} />

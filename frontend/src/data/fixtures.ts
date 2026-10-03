@@ -29,6 +29,9 @@ function emptyDatabase(): Database {
     catalogItems: [],
     tiers: [],
     transactions: [],
+    transactionItems: [],
+    cancellationRequests: [],
+    notifications: [],
     pointMovements: [],
     statusMovements: [],
     rewards: [],
@@ -70,9 +73,10 @@ export function buildDemoDatabase(): Database {
   db.users.push(
     user(1, 'admin@demo.paseo', 'Administración', 'Paseo', 'ADMIN'),
     user(2, 'ana@demo.paseo', 'Ana', 'Rivas'),
-    user(3, 'luis@demo.paseo', 'Luis', 'Pérez'),
-    user(4, 'sofia@demo.paseo', 'Sofía', 'Méndez'),
+    user(3, 'luis@demo.paseo', 'Luis', 'Pérez', 'MERCHANT'),
+    user(4, 'sofia@demo.paseo', 'Sofía', 'Méndez', 'MERCHANT'),
     user(5, 'marco@demo.paseo', 'Marco', 'Díaz'),
+    user(6, 'camila@demo.paseo', 'Camila', 'Rocha'),
   )
 
   const cat = (id: number, name: string, parentId: number | null = null): Category => ({
@@ -150,19 +154,34 @@ export function buildDemoDatabase(): Database {
     biz(14, 'Aldo', 'Calzado, carteras y accesorios de moda.', '1', 'Ala norte', '112', [6, 7]),
   )
 
-  db.businessMembers.push(
-    { id: 1, userId: 3, businessId: 1, role: 'MANAGER', status: 'ACTIVE' },
-    { id: 2, userId: 3, businessId: 6, role: 'STAFF', status: 'ACTIVE' },
-    ...[2, 3, 4, 5, 7, 8, 9, 11, 12].map((businessId, i) => ({
-      id: 3 + i,
-      userId: 4,
-      businessId,
-      role: (businessId === 3 ? 'MANAGER' : 'STAFF') as 'MANAGER' | 'STAFF',
-      status: 'ACTIVE' as const,
-    })),
-  )
+  // Store staff use their own MERCHANT account and work at a single business.
+  const staff: [businessId: number, email: string, firstName: string, lastName: string, role: 'MANAGER' | 'STAFF'][] = [
+    [1, 'luis@demo.paseo', 'Luis', 'Pérez', 'MANAGER'],
+    [3, 'sofia@demo.paseo', 'Sofía', 'Méndez', 'MANAGER'],
+    [6, 'carla@demo.paseo', 'Carla', 'Quiroga', 'STAFF'],
+    [2, 'diego@demo.paseo', 'Diego', 'Rojas', 'MANAGER'],
+    [4, 'andres@demo.paseo', 'Andrés', 'Vargas', 'MANAGER'],
+    [5, 'valeria@demo.paseo', 'Valeria', 'Carrasco', 'MANAGER'],
+    [6, 'jorge@demo.paseo', 'Jorge', 'Antezana', 'MANAGER'],
+    [7, 'paola@demo.paseo', 'Paola', 'Guzmán', 'MANAGER'],
+    [8, 'ricardo@demo.paseo', 'Ricardo', 'Pauker', 'MANAGER'],
+    [9, 'mauricio@demo.paseo', 'Mauricio', 'Salazar', 'MANAGER'],
+    [10, 'kenji@demo.paseo', 'Kenji', 'Arce', 'MANAGER'],
+    [11, 'gabriela@demo.paseo', 'Gabriela', 'Montaño', 'MANAGER'],
+    [12, 'daniela@demo.paseo', 'Daniela', 'Torrico', 'MANAGER'],
+    [13, 'fernando@demo.paseo', 'Fernando', 'Claure', 'MANAGER'],
+    [14, 'natalia@demo.paseo', 'Natalia', 'Soria', 'MANAGER'],
+  ]
+  staff.forEach(([businessId, email, firstName, lastName, role]) => {
+    let account = db.users.find((u) => u.email === email)
+    if (!account) {
+      account = user(db.users.length + 1, email, firstName, lastName, 'MERCHANT')
+      db.users.push(account)
+    }
+    db.businessMembers.push({ id: db.businessMembers.length + 1, userId: account.id, businessId, role, status: 'ACTIVE' })
+  })
 
-  const item = (businessId: number, name: string, price: number | null, description: string | null = null): CatalogItem => ({
+  const item = (businessId: number, name: string, price: number, description: string | null = null): CatalogItem => ({
     id: db.catalogItems.length + 1,
     businessId,
     name,
@@ -189,7 +208,7 @@ export function buildDemoDatabase(): Database {
       [7, 'Classic Roll', 32, 'El clásico rollo de canela con frosting'],
       [7, 'MiniBon', 20, null],
       [8, 'Lentes de sol', 650, null],
-      [8, 'Examen visual', null, 'Precio según evaluación'],
+      [8, 'Examen visual', 150, 'Incluye medición de vista y asesoría'],
       [9, 'Sub de 30 cm', 58, null],
       [9, 'Sub de 15 cm', 38, null],
       [10, 'Combo 12 piezas', 75, null],
@@ -404,31 +423,40 @@ export function buildDemoDatabase(): Database {
 
   const staffFor = (businessId: number) =>
     db.businessMembers.find((m) => m.businessId === businessId && m.status === 'ACTIVE')!.userId
-  const buy = (customerId: number, businessId: number, amount: number, when: Date) =>
-    registerPurchase(db, { customerId, businessId, performedById: staffFor(businessId), amount }, when)
+  const buy = (customerId: number, businessId: number, products: [name: string, quantity: number][], when: Date) =>
+    registerPurchase(
+      db,
+      {
+        customerId,
+        businessId,
+        performedById: staffFor(businessId),
+        items: products.map(([name, quantity]) => ({ catalogItemId: catalogId(businessId, name), quantity })),
+      },
+      when,
+    )
 
-  buy(2, 12, 260, new Date('2026-08-15T16:00:00-04:00'))
-  buy(2, 1, 60, daysAgo(33))
-  buy(2, 3, 430, daysAgo(31))
-  buy(2, 2, 170, daysAgo(26))
-  buy(2, 1, 45, daysAgo(19))
-  buy(2, 4, 620, daysAgo(17))
-  buy(2, 11, 210, daysAgo(14, 20))
-  buy(2, 7, 64, daysAgo(12))
-  buy(2, 1, 80, daysAgo(5))
-  buy(2, 6, 245, daysAgo(4))
-  buy(2, 2, 190, daysAgo(1))
-  buy(3, 2, 120, daysAgo(9))
-  buy(3, 9, 96, daysAgo(2))
-  buy(5, 3, 280, daysAgo(8))
-  buy(5, 3, 280, new Date(daysAgo(8).getTime() + 3 * 60 * 1000))
+  buy(2, 12, [['Pijama de algodón', 1], ['Body splash', 1]], new Date('2026-08-15T16:00:00-04:00'))
+  buy(2, 1, [['Capuchino', 1], ['Torta de chocolate', 1]], daysAgo(33))
+  buy(2, 3, [['Jeans clásicos', 1]], daysAgo(31))
+  buy(2, 2, [['Pizza familiar napolitana', 1], ['Pizza personal', 1]], daysAgo(26))
+  buy(2, 1, [['Capuchino', 2]], daysAgo(19))
+  buy(2, 4, [['Zapatillas Adidas Running', 1]], daysAgo(17))
+  buy(2, 11, [['Pique macho', 1], ['Silpancho', 1]], daysAgo(14, 20))
+  buy(2, 7, [['Classic Roll', 2]], daysAgo(12))
+  buy(2, 1, [['Capuchino', 2], ['Torta de chocolate', 1]], daysAgo(5))
+  buy(2, 6, [['Protector solar FPS 50', 1], ['Vitamina C x 30', 2]], daysAgo(4))
+  buy(2, 2, [['Pizza familiar napolitana', 1], ['Pizza personal', 1]], daysAgo(1))
+  buy(6, 2, [['Pizza familiar napolitana', 1]], daysAgo(9))
+  buy(6, 9, [['Sub de 30 cm', 1], ['Sub de 15 cm', 1]], daysAgo(2))
+  buy(5, 3, [['Polera básica', 1], ['Jeans clásicos', 1]], daysAgo(8))
+  buy(5, 3, [['Polera básica', 1], ['Jeans clásicos', 1]], new Date(daysAgo(8).getTime() + 3 * 60 * 1000))
 
   const redeemed = createRedemption(db, 2, 2, daysAgo(10))
-  validateRedemption(db, { token: redeemed.verificationToken, businessId: 7, staffId: 4 }, daysAgo(10, 17))
-  createRedemption(db, 2, 1, new Date(Date.now() - 2 * 3600_000))
+  validateRedemption(db, { token: redeemed.verificationToken, businessId: 7, staffId: staffFor(7) }, new Date(daysAgo(10).getTime() + 4 * 60_000))
+  createRedemption(db, 2, 1, new Date(Date.now() - 2 * 60_000))
 
   checkInEvent(db, { eventId: 1, customerId: 2 }, 1, new Date('2026-08-01T17:30:00-04:00'))
-  checkInEvent(db, { eventId: 1, customerId: 3 }, 1, new Date('2026-08-02T18:10:00-04:00'))
+  checkInEvent(db, { eventId: 1, customerId: 6 }, 1, new Date('2026-08-02T18:10:00-04:00'))
 
   return db
 }

@@ -1,13 +1,26 @@
 import { useState, type FormEvent } from 'react'
 import { Link } from 'react-router-dom'
-import { Plus } from 'lucide-react'
+import { Check, Plus } from 'lucide-react'
 import { useDb } from '../../data/store'
 import { rewardConditions, rewardRedeemedCount, rewardTitle } from '../../domain/loyalty'
-import { REWARD_TYPE_LABELS, formatDate, formatInt, formatMoney, fromLocalInput, toLocalInput } from '../../lib/format'
+import { REWARD_TYPE_LABELS, formatDateTime, formatInt, formatMoney, fromLocalInput, toLocalInput } from '../../lib/format'
 import type { Database, Reward, RewardStatus, RewardType } from '../../types/domain'
-import { Card, Empty, Field, Modal, PageHeader, run } from '../../components/ui'
+import { Card, Empty, Field, Modal, PageHeader, run, vanish } from '../../components/ui'
+import { confirmDialog } from '../../components/dialog'
+import { WindowFields, draftWindowError } from '../../components/WindowFields'
 import { FormActions, StatusBadge } from '../admin/shared'
 import { useWorkplace } from './useWorkplace'
+
+const CONDITION_EXAMPLES = [
+  'No acumulable con otras promociones.',
+  'Válido solo para consumo en el local.',
+  'Sujeto a disponibilidad del producto.',
+  'Válido de lunes a viernes.',
+  'No válido en feriados.',
+  'No canjeable por dinero en efectivo.',
+]
+
+const appendCondition = (text: string, condition: string) => (text.trim() ? `${text.trim()} ${condition}` : condition)
 
 interface Draft {
   id: number | null
@@ -66,7 +79,7 @@ function previewTitle(db: Database, businessId: number, d: Draft): string {
     createdById: 0,
     deletedAt: null,
   }
-  return [rewardTitle(db, preview), ...rewardConditions(db, preview)].join(' · ')
+  return [rewardTitle(db, preview), ...rewardConditions(db, preview)].join('. ')
 }
 
 export function MerchantRewardsPage() {
@@ -75,10 +88,22 @@ export function MerchantRewardsPage() {
   const [draft, setDraft] = useState<Draft | null>(null)
   const rewards = db.rewards.filter((r) => r.businessId === business.id && r.deletedAt === null).sort((a, b) => a.pointsCost - b.pointsCost)
   const products = db.catalogItems.filter((i) => i.businessId === business.id && i.deletedAt === null)
+  const editing = (draft?.id && db.rewards.find((r) => r.id === draft.id)) || null
+  const windowProblem = draft && draftWindowError(draft, editing, false)
+
+  const remove = async (r: Reward, row: HTMLElement) => {
+    const ok = await confirmDialog({
+      title: `¿Eliminar "${rewardTitle(db, r)}"?`,
+      message: 'Los clientes ya no podrán canjearla. Los canjes hechos se conservan.',
+      confirmLabel: 'Eliminar',
+      tone: 'danger',
+    })
+    if (ok) void vanish(row, () => run('softDelete', { table: 'rewards', id: r.id }, 'Recompensa eliminada'))
+  }
 
   const save = async (e: FormEvent) => {
     e.preventDefault()
-    if (!draft) return
+    if (!draft || windowProblem) return
     const ok = await run(
       'saveReward',
       {
@@ -109,7 +134,7 @@ export function MerchantRewardsPage() {
     <div className="page">
       <PageHeader
         title="Recompensas"
-        subtitle={`${business.name} · lo que tus clientes pueden canjear con sus puntos. Solo se canjean en tu establecimiento.`}
+        subtitle={`Lo que tus clientes pueden canjear con sus puntos. Solo se canjean en ${business.name}.`}
         actions={
           <button className="btn btn-primary" onClick={() => setDraft(toDraft())}>
             <Plus size={16} /> Nueva recompensa
@@ -121,14 +146,14 @@ export function MerchantRewardsPage() {
           <Empty>Aún no tienes recompensas. Crea la primera para atraer clientes con sus puntos.</Empty>
         ) : (
           <div className="table-wrap">
-            <table className="table">
+            <table className="table table-stack">
               <thead>
                 <tr>
                   <th>Recompensa</th>
                   <th>Tipo</th>
                   <th className="num">Costo</th>
                   <th>Nivel mínimo</th>
-                  <th className="num">Canjes / disponibles</th>
+                  <th className="num">Canjes</th>
                   <th>Vigencia</th>
                   <th>Estado</th>
                   <th />
@@ -145,29 +170,33 @@ export function MerchantRewardsPage() {
                         </div>
                       ))}
                     </td>
-                    <td className="small">{REWARD_TYPE_LABELS[r.type]}</td>
-                    <td className="num">{formatInt(r.pointsCost)} puntos</td>
-                    <td>{db.tiers.find((t) => t.id === r.minimumTierId)?.name ?? 'Cualquiera'}</td>
-                    <td className="num">
-                      {rewardRedeemedCount(db, r.id)} / {r.stock ?? '∞'}
+                    <td className="small" data-label="Tipo">
+                      {REWARD_TYPE_LABELS[r.type]}
                     </td>
-                    <td className="small">
-                      {r.startsAt || r.endsAt ? `${r.startsAt ? formatDate(r.startsAt) : '…'} - ${r.endsAt ? formatDate(r.endsAt) : '…'}` : 'Sin límite'}
+                    <td className="num" data-label="Costo">
+                      {formatInt(r.pointsCost)} puntos
                     </td>
-                    <td>
+                    <td data-label="Nivel mínimo">{db.tiers.find((t) => t.id === r.minimumTierId)?.name ?? 'Cualquiera'}</td>
+                    <td className="num" data-label="Canjes">
+                      {r.stock === null ? `${rewardRedeemedCount(db, r.id)}, sin límite` : `${rewardRedeemedCount(db, r.id)} de ${r.stock}`}
+                    </td>
+                    <td className="small" data-label="Vigencia">
+                      {r.startsAt && r.endsAt
+                        ? `${formatDateTime(r.startsAt)} - ${formatDateTime(r.endsAt)}`
+                        : r.startsAt
+                          ? `Desde ${formatDateTime(r.startsAt)}`
+                          : r.endsAt
+                            ? `Hasta ${formatDateTime(r.endsAt)}`
+                            : 'Sin límite'}
+                    </td>
+                    <td data-label="Estado">
                       <StatusBadge status={r.status} />
                     </td>
                     <td className="row end gap">
                       <button className="btn btn-ghost btn-sm" onClick={() => setDraft(toDraft(r))}>
                         Editar
                       </button>
-                      <button
-                        className="btn btn-ghost btn-sm danger"
-                        onClick={() =>
-                          confirm(`¿Eliminar "${rewardTitle(db, r)}"? Los clientes ya no podrán canjearla. Los canjes hechos se conservan.`) &&
-                          run('softDelete', { table: 'rewards', id: r.id }, 'Recompensa eliminada')
-                        }
-                      >
+                      <button className="btn btn-ghost btn-sm danger" onClick={(e) => remove(r, e.currentTarget)}>
                         Eliminar
                       </button>
                     </td>
@@ -237,8 +266,7 @@ export function MerchantRewardsPage() {
                       <option value="">Elige un producto</option>
                       {products.map((p) => (
                         <option key={p.id} value={p.id}>
-                          {p.name}
-                          {p.price !== null ? ` · ${formatMoney(p.price)}` : ''}
+                          {p.name} · {formatMoney(p.price)}
                         </option>
                       ))}
                     </select>
@@ -274,18 +302,36 @@ export function MerchantRewardsPage() {
                 <input type="number" min={0} step={1} value={draft.stock} onChange={(e) => setDraft({ ...draft, stock: e.target.value })} />
               </Field>
             </div>
-            <div className="grid-2">
-              <Field label="Disponible desde (opcional)">
-                <input type="datetime-local" value={draft.startsAt} onChange={(e) => setDraft({ ...draft, startsAt: e.target.value })} />
+            <WindowFields
+              value={draft}
+              onChange={(w) => setDraft({ ...draft, ...w })}
+              previous={editing}
+              required={false}
+              startLabel="Disponible desde"
+              endLabel="Disponible hasta"
+            />
+            <div className="stack-sm">
+              <Field label="Condiciones adicionales (opcional)" hint="El beneficio ya queda definido arriba. Toca un ejemplo para agregarlo.">
+                <textarea rows={2} maxLength={500} value={draft.description} onChange={(e) => setDraft({ ...draft, description: e.target.value })} />
               </Field>
-              <Field label="Disponible hasta (opcional)">
-                <input type="datetime-local" value={draft.endsAt} onChange={(e) => setDraft({ ...draft, endsAt: e.target.value })} />
-              </Field>
+              <div className="chips" aria-label="Condiciones frecuentes">
+                {CONDITION_EXAMPLES.map((c) => {
+                  const added = draft.description.includes(c)
+                  return (
+                    <button
+                      key={c}
+                      type="button"
+                      className={`chip chip-suggest ${added ? 'chip-active' : ''}`}
+                      onClick={() => setDraft({ ...draft, description: added ? draft.description : appendCondition(draft.description, c) })}
+                      aria-pressed={added}
+                    >
+                      {added ? <Check size={13} aria-hidden /> : <Plus size={13} aria-hidden />} {c}
+                    </button>
+                  )
+                })}
+              </div>
             </div>
-            <Field label="Condiciones adicionales (opcional)" hint="Ej.: no acumulable con otras ofertas. El beneficio ya queda definido arriba.">
-              <textarea rows={2} value={draft.description} onChange={(e) => setDraft({ ...draft, description: e.target.value })} />
-            </Field>
-            <FormActions onCancel={() => setDraft(null)} />
+            <FormActions onCancel={() => setDraft(null)} disabled={!!windowProblem} />
           </form>
         </Modal>
       )}

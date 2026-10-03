@@ -1,11 +1,14 @@
 import { useState, type FormEvent } from 'react'
-import { DoorOpen, UserRound } from 'lucide-react'
+import { UserRound } from 'lucide-react'
 import { ApiError, api, type IdentifiedCustomer } from '../../data/api'
 import { useDb } from '../../data/store'
 import { isEventOpen } from '../../domain/loyalty'
 import { formatDateTime, formatInt, fromLocalInput, fullName, toLocalInput } from '../../lib/format'
 import type { EventStatus, PaseoEvent } from '../../types/domain'
-import { Badge, Card, Empty, Field, Modal, notify, run } from '../../components/ui'
+import { Badge, Card, Empty, Field, Modal, notify, run, vanish } from '../../components/ui'
+import { confirmDialog } from '../../components/dialog'
+import { ScanOrCode } from '../../components/ScanOrCode'
+import { WindowFields, draftWindowError } from '../../components/WindowFields'
 import { AdminHeader, FormActions } from './shared'
 
 interface Draft {
@@ -43,25 +46,24 @@ function timing(e: PaseoEvent, now: Date): string {
 
 function CheckInModal({ event, onClose }: { event: PaseoEvent; onClose: () => void }) {
   const db = useDb()
-  const [code, setCode] = useState('')
   const [busy, setBusy] = useState(false)
   const [last, setLast] = useState<{ customer: IdentifiedCustomer; points: number; badges: string[] } | null>(null)
   const attendees = db.eventAttendances
     .filter((a) => a.eventId === event.id)
     .sort((a, b) => b.checkedInAt.localeCompare(a.checkedInAt))
 
-  const submit = async (e: FormEvent) => {
-    e.preventDefault()
+  const checkIn = async (value: string) => {
+    if (!value.trim() || busy) return false
     setBusy(true)
     try {
-      const customer = await api.identifyCustomer(code.trim())
+      const customer = await api.identifyCustomer(value.trim())
       const r = await run('checkInEvent', { eventId: event.id, customerId: customer.id })
-      if (r) {
-        setLast({ customer, points: r.pointsEarned, badges: r.newBadges })
-        setCode('')
-      }
+      if (!r) return false
+      setLast({ customer, points: r.pointsEarned, badges: r.newBadges })
+      return true
     } catch (err) {
       notify('error', err instanceof ApiError ? err.message : 'Error inesperado')
+      return false
     } finally {
       setBusy(false)
     }
@@ -71,14 +73,7 @@ function CheckInModal({ event, onClose }: { event: PaseoEvent; onClose: () => vo
     <Modal title={`Registrar ingreso · ${event.name}`} onClose={onClose} wide>
       <div className="stack">
         {isEventOpen(event) ? (
-          <form className="stack" onSubmit={submit}>
-            <Field label="Código del cliente o correo" hint="Escanea o pega el código QR que muestra la app del cliente, o escribe su correo.">
-              <input value={code} onChange={(e) => setCode(e.target.value)} placeholder="PP1.… o cliente@correo.com" autoFocus />
-            </Field>
-            <button className="btn btn-primary" type="submit" disabled={!code.trim() || busy}>
-              <DoorOpen size={16} /> Registrar ingreso
-            </button>
-          </form>
+          <ScanOrCode kind="customer" onSubmit={checkIn} busy={busy} scanLabel="Apunta la cámara al QR de socio del cliente" />
         ) : (
           <p className="muted">Los ingresos solo se registran mientras el evento está en curso ({formatDateTime(event.startsAt)} - {formatDateTime(event.endsAt)}).</p>
         )}
@@ -130,10 +125,22 @@ export function AdminEvents() {
   const [checkIn, setCheckIn] = useState<PaseoEvent | null>(null)
   const now = new Date()
   const events = db.events.filter((e) => e.deletedAt === null).sort((a, b) => b.startsAt.localeCompare(a.startsAt))
+  const editing = (draft?.id && db.events.find((e) => e.id === draft.id)) || null
+  const windowProblem = draft && draftWindowError(draft, editing, true)
+
+  const remove = async (e: PaseoEvent, row: HTMLElement) => {
+    const ok = await confirmDialog({
+      title: `¿Eliminar "${e.name}"?`,
+      message: 'Los clientes que asistieron conservan sus puntos, pero dejarán de ver la insignia.',
+      confirmLabel: 'Eliminar',
+      tone: 'danger',
+    })
+    if (ok) void vanish(row, () => run('softDelete', { table: 'events', id: e.id }, 'Evento eliminado'))
+  }
 
   const save = async (e: FormEvent) => {
     e.preventDefault()
-    if (!draft) return
+    if (!draft || windowProblem) return
     const startsAt = fromLocalInput(draft.startsAt)
     const endsAt = fromLocalInput(draft.endsAt)
     if (!startsAt || !endsAt) return
@@ -169,7 +176,7 @@ export function AdminEvents() {
           <Empty>No hay eventos.</Empty>
         ) : (
           <div className="table-wrap">
-            <table className="table">
+            <table className="table table-stack">
               <thead>
                 <tr>
                   <th>Evento</th>
@@ -189,15 +196,21 @@ export function AdminEvents() {
                         <strong>{e.name}</strong>
                         <div className="muted small">{[e.location, e.description].filter(Boolean).join(' · ')}</div>
                       </td>
-                      <td className="small">
-                        {formatDateTime(e.startsAt)} - {formatDateTime(e.endsAt)}
+                      <td className="small" data-label="Fecha">
                         <div>
-                          <Badge tone={when === 'En curso' ? 'success' : 'neutral'}>{when}</Badge>
+                          {formatDateTime(e.startsAt)} - {formatDateTime(e.endsAt)}
+                          <div>
+                            <Badge tone={when === 'En curso' ? 'success' : 'neutral'}>{when}</Badge>
+                          </div>
                         </div>
                       </td>
-                      <td className="num">{formatInt(e.pointsReward)}</td>
-                      <td className="num">{formatInt(db.eventAttendances.filter((a) => a.eventId === e.id).length)}</td>
-                      <td>
+                      <td className="num" data-label="Puntos">
+                        {formatInt(e.pointsReward)}
+                      </td>
+                      <td className="num" data-label="Asistentes">
+                        {formatInt(db.eventAttendances.filter((a) => a.eventId === e.id).length)}
+                      </td>
+                      <td data-label="Estado">
                         <Badge tone={STATUS[e.status].tone}>{STATUS[e.status].text}</Badge>
                       </td>
                       <td className="row end gap">
@@ -207,13 +220,7 @@ export function AdminEvents() {
                         <button className="btn btn-ghost btn-sm" onClick={() => setDraft(toDraft(e))}>
                           Editar
                         </button>
-                        <button
-                          className="btn btn-ghost btn-sm danger"
-                          onClick={() =>
-                            confirm(`¿Eliminar "${e.name}"? Los clientes que asistieron conservan sus puntos, pero dejarán de ver la insignia.`) &&
-                            run('softDelete', { table: 'events', id: e.id }, 'Evento eliminado')
-                          }
-                        >
+                        <button className="btn btn-ghost btn-sm danger" onClick={(ev) => remove(e, ev.currentTarget)}>
                           Eliminar
                         </button>
                       </td>
@@ -245,14 +252,7 @@ export function AdminEvents() {
                 <input type="number" min={0} step={1} required value={draft.pointsReward} onChange={(e) => setDraft({ ...draft, pointsReward: e.target.value })} />
               </Field>
             </div>
-            <div className="grid-2">
-              <Field label="Inicio">
-                <input type="datetime-local" required value={draft.startsAt} onChange={(e) => setDraft({ ...draft, startsAt: e.target.value })} />
-              </Field>
-              <Field label="Fin">
-                <input type="datetime-local" required value={draft.endsAt} onChange={(e) => setDraft({ ...draft, endsAt: e.target.value })} />
-              </Field>
-            </div>
+            <WindowFields value={draft} onChange={(w) => setDraft({ ...draft, ...w })} previous={editing} required />
             <Field label="Estado" hint="Solo los eventos publicados se muestran a los clientes y permiten registrar ingresos.">
               <select value={draft.status} onChange={(e) => setDraft({ ...draft, status: e.target.value as EventStatus })}>
                 <option value="DRAFT">Borrador</option>
@@ -260,7 +260,7 @@ export function AdminEvents() {
                 <option value="INACTIVE">Oculto</option>
               </select>
             </Field>
-            <FormActions onCancel={() => setDraft(null)} />
+            <FormActions onCancel={() => setDraft(null)} disabled={!!windowProblem} />
           </form>
         </Modal>
       )}

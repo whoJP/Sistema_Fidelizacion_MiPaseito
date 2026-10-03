@@ -1,8 +1,10 @@
 import { useState, type FormEvent } from 'react'
-import { getDb, useDb } from '../../data/store'
+import { ApiError, api } from '../../data/api'
+import { applySnapshot, getDb, useDb } from '../../data/store'
 import { DAY_LABELS, DAYS_IN_ORDER, MEMBER_ROLE_LABELS, floorLabel, fullName } from '../../lib/format'
 import type { Business, BusinessMemberRole, BusinessSchedule, Database } from '../../types/domain'
-import { Badge, Card, Empty, Field, Modal, MultiSelect, run } from '../../components/ui'
+import { Badge, Card, Empty, Field, Modal, MultiSelect, notify, run, vanish } from '../../components/ui'
+import { confirmDialog } from '../../components/dialog'
 import { AdminHeader, FormActions, StatusBadge, categoryLabel, liveCategoryOptions } from './shared'
 
 type ScheduleDraft = Omit<BusinessSchedule, 'id' | 'businessId'>
@@ -47,11 +49,39 @@ function toDraft(db: Database, b?: Business): Draft {
 
 const orNull = (v: string) => v.trim() || null
 
+const EMPTY_ACCOUNT = { firstName: '', lastName: '', email: '', phone: '', password: '', role: 'STAFF' as BusinessMemberRole }
+
+function RoleSelect({ value, onChange }: { value: BusinessMemberRole; onChange: (role: BusinessMemberRole) => void }) {
+  return (
+    <select value={value} onChange={(e) => onChange(e.target.value as BusinessMemberRole)}>
+      <option value="STAFF">{MEMBER_ROLE_LABELS.STAFF}</option>
+      <option value="MANAGER">{MEMBER_ROLE_LABELS.MANAGER}</option>
+    </select>
+  )
+}
+
 function MembersPanel({ businessId }: { businessId: number }) {
   const db = useDb()
   const [email, setEmail] = useState('')
   const [role, setRole] = useState<BusinessMemberRole>('STAFF')
+  const [account, setAccount] = useState(EMPTY_ACCOUNT)
+  const [creating, setCreating] = useState(false)
   const members = db.businessMembers.filter((m) => m.businessId === businessId && m.status === 'ACTIVE')
+
+  const createAccount = async () => {
+    setCreating(true)
+    try {
+      const { version, db: next } = await api.createMerchant({ ...account, businessId })
+      applySnapshot(version, next)
+      notify('success', `Cuenta creada. ${account.firstName} ya puede ingresar con su correo y contraseña.`)
+      setAccount(EMPTY_ACCOUNT)
+    } catch (err) {
+      notify('error', err instanceof ApiError ? err.message : 'Error inesperado')
+    } finally {
+      setCreating(false)
+    }
+  }
+  const accountReady = account.firstName.trim() && account.lastName.trim() && account.email.trim() && account.password.length >= 6
 
   return (
     <div className="stack">
@@ -69,7 +99,20 @@ function MembersPanel({ businessId }: { businessId: number }) {
                 </span>
                 <span className="row gap">
                   <Badge tone={m.role === 'MANAGER' ? 'accent' : 'neutral'}>{MEMBER_ROLE_LABELS[m.role]}</Badge>
-                  <button type="button" className="btn btn-ghost btn-sm" onClick={() => run('deactivateMembership', { memberId: m.id }, 'Persona quitada del equipo')}>
+                  <button
+                    type="button"
+                    className="btn btn-ghost btn-sm danger"
+                    onClick={async (e) => {
+                      const row = e.currentTarget
+                      const ok = await confirmDialog({
+                        title: `¿Quitar a ${u ? fullName(u) : 'esta persona'} del equipo?`,
+                        message: 'Ya no podrá registrar compras ni validar canjes en este establecimiento. Lo que registró se conserva.',
+                        confirmLabel: 'Quitar',
+                        tone: 'danger',
+                      })
+                      if (ok) void vanish(row, () => run('deactivateMembership', { memberId: m.id }, 'Persona quitada del equipo'))
+                    }}
+                  >
                     Quitar
                   </button>
                 </span>
@@ -78,15 +121,41 @@ function MembersPanel({ businessId }: { businessId: number }) {
           })}
         </ul>
       )}
+      <span className="field-label">Nueva cuenta de personal</span>
+      <div className="grid-2">
+        <Field label="Nombre">
+          <input value={account.firstName} onChange={(e) => setAccount({ ...account, firstName: e.target.value })} />
+        </Field>
+        <Field label="Apellido">
+          <input value={account.lastName} onChange={(e) => setAccount({ ...account, lastName: e.target.value })} />
+        </Field>
+        <Field label="Correo">
+          <input type="email" autoComplete="off" value={account.email} onChange={(e) => setAccount({ ...account, email: e.target.value })} />
+        </Field>
+        <Field label="Contraseña inicial" hint="Mínimo 6 caracteres. Entrégasela a la persona.">
+          <input type="text" autoComplete="off" value={account.password} onChange={(e) => setAccount({ ...account, password: e.target.value })} />
+        </Field>
+        <Field label="Teléfono (opcional)">
+          <input type="tel" value={account.phone} onChange={(e) => setAccount({ ...account, phone: e.target.value })} />
+        </Field>
+        <Field label="Cargo">
+          <RoleSelect value={account.role} onChange={(r) => setAccount({ ...account, role: r })} />
+        </Field>
+      </div>
+      <div className="row end">
+        <button type="button" className="btn" disabled={!accountReady || creating} onClick={createAccount}>
+          Crear cuenta
+        </button>
+      </div>
+
+      <span className="field-label">Asignar una cuenta de personal existente</span>
       <div className="row gap wrap">
-        <input placeholder="Correo de su cuenta en Paseo Points" value={email} onChange={(e) => setEmail(e.target.value)} className="grow" />
-        <select value={role} onChange={(e) => setRole(e.target.value as BusinessMemberRole)}>
-          <option value="STAFF">{MEMBER_ROLE_LABELS.STAFF}</option>
-          <option value="MANAGER">{MEMBER_ROLE_LABELS.MANAGER}</option>
-        </select>
+        <input placeholder="Correo de la cuenta de personal" value={email} onChange={(e) => setEmail(e.target.value)} className="grow" />
+        <RoleSelect value={role} onChange={setRole} />
         <button
           type="button"
           className="btn"
+          disabled={!email.trim()}
           onClick={async () => {
             if (await run('saveMembership', { email, businessId, role }, 'Persona agregada al equipo')) setEmail('')
           }}
@@ -95,7 +164,8 @@ function MembersPanel({ businessId }: { businessId: number }) {
         </button>
       </div>
       <p className="muted small">
-        <b>Personal</b> registra compras y valida canjes. <b>Encargado</b> además maneja el catálogo, las recompensas y puede anular registros.
+        Cada persona trabaja en un solo establecimiento y usa una cuenta distinta a la de cliente. <b>Personal</b> registra compras y
+        valida canjes. <b>Encargado</b> además maneja el catálogo, las recompensas y puede anular registros.
       </p>
     </div>
   )
@@ -169,7 +239,7 @@ export function AdminBusinesses() {
                         .map((c) => categoryLabel(db, c.categoryId))
                         .join(', ') || '-'}
                     </td>
-                    <td className="small">{[b.floor && floorLabel(b.floor), b.sector, b.localNumber].filter(Boolean).join(' · ') || '-'}</td>
+                    <td className="small">{[b.floor && floorLabel(b.floor), b.sector, b.localNumber && `Local ${b.localNumber}`].filter(Boolean).join(', ') || '-'}</td>
                     <td>{db.businessMembers.filter((m) => m.businessId === b.id && m.status === 'ACTIVE').length}</td>
                     <td>
                       <StatusBadge status={b.status} />
@@ -180,10 +250,16 @@ export function AdminBusinesses() {
                       </button>
                       <button
                         className="btn btn-ghost btn-sm danger"
-                        onClick={() =>
-                          confirm(`¿Eliminar "${b.name}"? Su historial de compras se conserva.`) &&
-                          run('softDelete', { table: 'businesses', id: b.id }, 'Establecimiento eliminado')
-                        }
+                        onClick={async (e) => {
+                          const row = e.currentTarget
+                          const ok = await confirmDialog({
+                            title: `¿Eliminar "${b.name}"?`,
+                            message: 'Deja de aparecer en el directorio y su personal pierde el acceso. Su historial de compras se conserva.',
+                            confirmLabel: 'Eliminar',
+                            tone: 'danger',
+                          })
+                          if (ok) void vanish(row, () => run('softDelete', { table: 'businesses', id: b.id }, 'Establecimiento eliminado'))
+                        }}
                       >
                         Eliminar
                       </button>

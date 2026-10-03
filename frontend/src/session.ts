@@ -53,24 +53,20 @@ export interface Session {
   /** Signed in but the first snapshot hasn't arrived yet. */
   loading: boolean
   user: User | null
-  workplaces: Workplace[]
+  /** The business a MERCHANT account works at; null for customers, admins and unassigned staff. */
+  workplace: Workplace | null
 }
 
 export function useSession(): Session {
   const current = useSyncExternalStore(subscribe, () => session)
   const db = useDbOrNull()
-  if (!current) return { loading: false, user: null, workplaces: [] }
-  if (!db) return { loading: true, user: null, workplaces: [] }
+  if (!current) return { loading: false, user: null, workplace: null }
+  if (!db) return { loading: true, user: null, workplace: null }
   const user = db.users.find((u) => u.id === current.userId && u.deletedAt === null && u.status === 'ACTIVE') ?? null
-  const workplaces = user
-    ? db.businessMembers
-        .filter((m) => m.userId === user.id && m.status === 'ACTIVE')
-        .flatMap((membership) => {
-          const business = db.businesses.find((b) => b.id === membership.businessId && b.deletedAt === null)
-          return business ? [{ membership, business }] : []
-        })
-    : []
-  return { loading: false, user, workplaces }
+  const membership =
+    user?.role === 'MERCHANT' ? db.businessMembers.find((m) => m.userId === user.id && m.status === 'ACTIVE') : undefined
+  const business = membership && db.businesses.find((b) => b.id === membership.businessId && b.deletedAt === null)
+  return { loading: false, user, workplace: membership && business ? { membership, business } : null }
 }
 
 /** For components rendered inside authenticated layouts. */

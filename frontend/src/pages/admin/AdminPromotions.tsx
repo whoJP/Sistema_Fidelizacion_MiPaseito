@@ -1,9 +1,11 @@
 import { useState, type FormEvent } from 'react'
 import { useDb } from '../../data/store'
 import { promotionScope } from '../../domain/loyalty'
-import { formatDate, formatInt, fromLocalInput, toLocalInput } from '../../lib/format'
+import { formatDateTime, formatInt, fromLocalInput, toLocalInput } from '../../lib/format'
 import type { Database, Promotion, PromotionStatus, PromotionType } from '../../types/domain'
-import { Card, Empty, Field, Modal, run } from '../../components/ui'
+import { Card, Empty, Field, Modal, run, vanish } from '../../components/ui'
+import { confirmDialog } from '../../components/dialog'
+import { WindowFields, draftWindowError } from '../../components/WindowFields'
 import { AdminHeader, FormActions, ScopeEditor, StatusBadge, scopeSummary, type ScopeValue } from './shared'
 
 interface Draft {
@@ -32,10 +34,22 @@ export function AdminPromotions() {
   const db = useDb()
   const [draft, setDraft] = useState<Draft | null>(null)
   const promotions = db.promotions.filter((p) => p.deletedAt === null).sort((a, b) => b.id - a.id)
+  const editing = (draft?.id && db.promotions.find((p) => p.id === draft.id)) || null
+  const windowProblem = draft && draftWindowError(draft, editing, true)
+
+  const remove = async (p: Promotion, row: HTMLElement) => {
+    const ok = await confirmDialog({
+      title: `¿Eliminar "${p.name}"?`,
+      message: 'Deja de aplicarse a las compras nuevas. Los puntos extra ya entregados se conservan.',
+      confirmLabel: 'Eliminar',
+      tone: 'danger',
+    })
+    if (ok) void vanish(row, () => run('softDelete', { table: 'promotions', id: p.id }, 'Promoción eliminada'))
+  }
 
   const save = async (e: FormEvent) => {
     e.preventDefault()
-    if (!draft) return
+    if (!draft || windowProblem) return
     const startsAt = fromLocalInput(draft.startsAt)
     const endsAt = fromLocalInput(draft.endsAt)
     if (!startsAt || !endsAt) return
@@ -90,7 +104,7 @@ export function AdminPromotions() {
                     </td>
                     <td>{p.type === 'POINTS_MULTIPLIER' ? `Puntos ×${p.value}` : `+${formatInt(p.value)} puntos`}</td>
                     <td className="small">
-                      {formatDate(p.startsAt)} - {formatDate(p.endsAt)}
+                      {formatDateTime(p.startsAt)} - {formatDateTime(p.endsAt)}
                     </td>
                     <td className="small">{scopeSummary(db, promotionScope(db, p.id))}</td>
                     <td className="num">
@@ -103,10 +117,7 @@ export function AdminPromotions() {
                       <button className="btn btn-ghost btn-sm" onClick={() => setDraft(toDraft(db, p))}>
                         Editar
                       </button>
-                      <button
-                        className="btn btn-ghost btn-sm danger"
-                        onClick={() => confirm(`¿Eliminar "${p.name}"?`) && run('softDelete', { table: 'promotions', id: p.id }, 'Promoción eliminada')}
-                      >
+                      <button className="btn btn-ghost btn-sm danger" onClick={(e) => remove(p, e.currentTarget)}>
                         Eliminar
                       </button>
                     </td>
@@ -144,16 +155,9 @@ export function AdminPromotions() {
                 <input type="number" step={draft.type === 'POINTS_MULTIPLIER' ? 0.1 : 1} min={0} required value={draft.value} onChange={(e) => setDraft({ ...draft, value: e.target.value })} />
               </Field>
             </div>
-            <div className="grid-2">
-              <Field label="Inicio">
-                <input type="datetime-local" required value={draft.startsAt} onChange={(e) => setDraft({ ...draft, startsAt: e.target.value })} />
-              </Field>
-              <Field label="Fin">
-                <input type="datetime-local" required value={draft.endsAt} onChange={(e) => setDraft({ ...draft, endsAt: e.target.value })} />
-              </Field>
-            </div>
+            <WindowFields value={draft} onChange={(w) => setDraft({ ...draft, ...w })} previous={editing} required />
             <ScopeEditor db={db} value={draft.scope} onChange={(scope) => setDraft({ ...draft, scope })} />
-            <FormActions onCancel={() => setDraft(null)} />
+            <FormActions onCancel={() => setDraft(null)} disabled={!!windowProblem} />
           </form>
         </Modal>
       )}

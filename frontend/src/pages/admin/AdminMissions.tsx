@@ -1,9 +1,11 @@
 import { useState, type FormEvent } from 'react'
 import { useDb } from '../../data/store'
 import { missionScope } from '../../domain/loyalty'
-import { MISSION_GOAL_HINTS, MISSION_TYPE_LABELS, formatDate, formatInt, formatMoney, fromLocalInput, toLocalInput } from '../../lib/format'
+import { MISSION_GOAL_HINTS, MISSION_TYPE_LABELS, formatDateTime, formatInt, formatMoney, fromLocalInput, toLocalInput } from '../../lib/format'
 import type { Database, Mission, MissionStatus, MissionType } from '../../types/domain'
-import { Card, Empty, Field, Modal, run } from '../../components/ui'
+import { Card, Empty, Field, Modal, run, vanish } from '../../components/ui'
+import { confirmDialog } from '../../components/dialog'
+import { WindowFields, draftWindowError } from '../../components/WindowFields'
 import { AdminHeader, FormActions, ScopeEditor, StatusBadge, scopeSummary, type ScopeValue } from './shared'
 
 interface Draft {
@@ -42,10 +44,22 @@ export function AdminMissions() {
   const db = useDb()
   const [draft, setDraft] = useState<Draft | null>(null)
   const missions = db.missions.filter((m) => m.deletedAt === null).sort((a, b) => b.id - a.id)
+  const editing = (draft?.id && db.missions.find((m) => m.id === draft.id)) || null
+  const windowProblem = draft && draftWindowError(draft, editing, true)
+
+  const remove = async (m: Mission, row: HTMLElement) => {
+    const ok = await confirmDialog({
+      title: `¿Eliminar "${m.name}"?`,
+      message: 'Deja de mostrarse a los clientes. Los premios ya entregados se conservan.',
+      confirmLabel: 'Eliminar',
+      tone: 'danger',
+    })
+    if (ok) void vanish(row, () => run('softDelete', { table: 'missions', id: m.id }, 'Misión eliminada'))
+  }
 
   const save = async (e: FormEvent) => {
     e.preventDefault()
-    if (!draft) return
+    if (!draft || windowProblem) return
     const startsAt = fromLocalInput(draft.startsAt)
     const endsAt = fromLocalInput(draft.endsAt)
     if (!startsAt || !endsAt) return
@@ -109,7 +123,7 @@ export function AdminMissions() {
                       {formatInt(m.rewardPoints)} puntos · {formatInt(m.rewardStatus)} de nivel
                     </td>
                     <td className="small">
-                      {formatDate(m.startsAt)} - {formatDate(m.endsAt)}
+                      {formatDateTime(m.startsAt)} - {formatDateTime(m.endsAt)}
                     </td>
                     <td className="small">{scopeSummary(db, missionScope(db, m.id))}</td>
                     <td className="num">{db.missionProgress.filter((p) => p.missionId === m.id && p.completedAt).length}</td>
@@ -120,10 +134,7 @@ export function AdminMissions() {
                       <button className="btn btn-ghost btn-sm" onClick={() => setDraft(toDraft(db, m))}>
                         Editar
                       </button>
-                      <button
-                        className="btn btn-ghost btn-sm danger"
-                        onClick={() => confirm(`¿Eliminar "${m.name}"?`) && run('softDelete', { table: 'missions', id: m.id }, 'Misión eliminada')}
-                      >
+                      <button className="btn btn-ghost btn-sm danger" onClick={(e) => remove(m, e.currentTarget)}>
                         Eliminar
                       </button>
                     </td>
@@ -175,16 +186,9 @@ export function AdminMissions() {
                 <input type="number" min={0} step={1} value={draft.rewardStatus} onChange={(e) => setDraft({ ...draft, rewardStatus: e.target.value })} />
               </Field>
             </div>
-            <div className="grid-2">
-              <Field label="Inicio">
-                <input type="datetime-local" required value={draft.startsAt} onChange={(e) => setDraft({ ...draft, startsAt: e.target.value })} />
-              </Field>
-              <Field label="Fin">
-                <input type="datetime-local" required value={draft.endsAt} onChange={(e) => setDraft({ ...draft, endsAt: e.target.value })} />
-              </Field>
-            </div>
+            <WindowFields value={draft} onChange={(w) => setDraft({ ...draft, ...w })} previous={editing} required />
             <ScopeEditor db={db} value={draft.scope} onChange={(scope) => setDraft({ ...draft, scope })} />
-            <FormActions onCancel={() => setDraft(null)} />
+            <FormActions onCancel={() => setDraft(null)} disabled={!!windowProblem} />
           </form>
         </Modal>
       )}

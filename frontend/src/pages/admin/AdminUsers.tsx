@@ -5,17 +5,24 @@ import { pointsBalance, statusTotal, tierForStatus } from '../../domain/loyalty'
 import { MEMBER_ROLE_LABELS, formatInt, fullName } from '../../lib/format'
 import { useUser } from '../../session'
 import type { User } from '../../types/domain'
-import { Badge, Card, Field, Modal, PageHeader, run } from '../../components/ui'
+import { Badge, Card, Field, Modal, PageHeader, flash, run } from '../../components/ui'
+import { confirmDialog } from '../../components/dialog'
 import { StatusBadge } from './shared'
 
 type Filter = 'all' | 'customers' | 'staff' | 'admins'
 
 const FILTERS: { id: Filter; label: string }[] = [
   { id: 'all', label: 'Todos' },
-  { id: 'customers', label: 'Solo clientes' },
-  { id: 'staff', label: 'Trabajan en tiendas' },
+  { id: 'customers', label: 'Clientes' },
+  { id: 'staff', label: 'Personal de tiendas' },
   { id: 'admins', label: 'Administradores' },
 ]
+
+const ROLE_FILTER: Record<Exclude<Filter, 'all'>, User['role']> = {
+  customers: 'CUSTOMER',
+  staff: 'MERCHANT',
+  admins: 'ADMIN',
+}
 
 export function AdminUsers() {
   const db = useDb()
@@ -31,12 +38,7 @@ export function AdminUsers() {
   const users = db.users
     .filter((u) => u.deletedAt === null)
     .filter((u) => !q || u.email.toLowerCase().includes(q) || fullName(u).toLowerCase().includes(q))
-    .filter((u) => {
-      if (filter === 'admins') return u.role === 'ADMIN'
-      if (filter === 'staff') return worksAt(u.id).length > 0
-      if (filter === 'customers') return u.role === 'CUSTOMER' && worksAt(u.id).length === 0
-      return true
-    })
+    .filter((u) => filter === 'all' || u.role === ROLE_FILTER[filter])
 
   const submitAdjust = async (e: FormEvent) => {
     e.preventDefault()
@@ -48,27 +50,31 @@ export function AdminUsers() {
     }
   }
 
-  const toggleStatus = (u: User) => {
+  const toggleStatus = async (u: User, row: HTMLElement) => {
     if (u.status === 'ACTIVE') {
-      const ok = confirm(
-        `¿Suspender a ${fullName(u)}?\n\n` +
+      const ok = await confirmDialog({
+        title: `¿Suspender a ${fullName(u)}?`,
+        message:
           'Mientras esté suspendido no podrá sumar puntos, canjear recompensas ni registrar compras en tiendas. ' +
           'Sus puntos e historial se conservan y puedes reactivarlo cuando quieras.',
-      )
+        confirmLabel: 'Suspender',
+        tone: 'danger',
+      })
       if (!ok) return
     }
-    void run(
+    const done = await run(
       'setUserStatus',
       { userId: u.id, status: u.status === 'ACTIVE' ? 'SUSPENDED' : 'ACTIVE' },
       u.status === 'ACTIVE' ? 'Usuario suspendido' : 'Usuario reactivado',
     )
+    if (done !== undefined) flash(row)
   }
 
   return (
     <div className="page">
       <PageHeader
         title="Usuarios"
-        subtitle="Toda cuenta es de cliente. Si además atiende en una tienda, aparece en «Trabaja en» con su cargo."
+        subtitle="Clientes, personal de tiendas y administradores. Las cuentas de personal se crean desde Establecimientos."
       />
       <div className="filters-row">
         <label className="search">
@@ -108,7 +114,9 @@ export function AdminUsers() {
                       <strong>{fullName(u)}</strong>
                       <div className="muted small">{u.email}</div>
                     </td>
-                    <td>{u.role === 'ADMIN' ? <Badge tone="accent">Administrador</Badge> : 'Cliente'}</td>
+                    <td>
+                      {u.role === 'ADMIN' ? <Badge tone="accent">Administrador</Badge> : u.role === 'MERCHANT' ? <Badge tone="neutral">Personal</Badge> : 'Cliente'}
+                    </td>
                     <td className="small">
                       {worksAt(u.id)
                         .map((m) => `${db.businesses.find((b) => b.id === m.businessId)?.name} (${MEMBER_ROLE_LABELS[m.role]})`)
@@ -127,7 +135,7 @@ export function AdminUsers() {
                         </button>
                       )}
                       {u.id !== admin.id && (
-                        <button className={`btn btn-ghost btn-sm ${u.status === 'ACTIVE' ? 'danger' : ''}`} onClick={() => toggleStatus(u)}>
+                        <button className={`btn btn-ghost btn-sm ${u.status === 'ACTIVE' ? 'danger' : ''}`} onClick={(e) => toggleStatus(u, e.currentTarget)}>
                           {u.status === 'ACTIVE' ? 'Suspender' : 'Reactivar'}
                         </button>
                       )}

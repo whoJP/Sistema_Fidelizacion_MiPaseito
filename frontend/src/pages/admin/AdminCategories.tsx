@@ -1,7 +1,9 @@
 import { useState, type FormEvent } from 'react'
 import { useDb } from '../../data/store'
+import { plural } from '../../lib/format'
 import type { Category } from '../../types/domain'
-import { Card, Empty, Field, Modal, run } from '../../components/ui'
+import { Card, Empty, Field, Modal, notify, run, vanish } from '../../components/ui'
+import { confirmDialog } from '../../components/dialog'
 import { AdminHeader, FormActions, StatusBadge } from './shared'
 
 type Draft = { id: number | null; name: string; parentId: number | null; status: Category['status'] }
@@ -25,19 +27,26 @@ export function AdminCategories() {
     if (ok) setDraft(null)
   }
 
-  const remove = (c: Category) => {
+  const remove = async (c: Category, row: HTMLElement) => {
     if (children(c.id).length > 0) {
-      alert('Primero elimina o mueve sus subcategorías.')
+      notify('error', `Primero elimina o mueve las subcategorías de "${c.name}".`)
       return
     }
-    if (confirm(`¿Eliminar "${c.name}"?`)) void run('softDelete', { table: 'categories', id: c.id }, 'Categoría eliminada')
+    const used = usage(c.id)
+    const ok = await confirmDialog({
+      title: `¿Eliminar "${c.name}"?`,
+      message: used > 0 ? `${plural(used, 'establecimiento la usa', 'establecimientos la usan')}; dejarán de aparecer bajo esta categoría.` : undefined,
+      confirmLabel: 'Eliminar',
+      tone: 'danger',
+    })
+    if (ok) void vanish(row, () => run('softDelete', { table: 'categories', id: c.id }, 'Categoría eliminada'))
   }
 
   const row = (c: Category, depth: number) => (
     <li key={c.id} className="list-row" style={{ paddingLeft: depth * 24 }}>
       <span>
         {depth > 0 && <span className="muted">└ </span>}
-        <strong>{c.name}</strong> <span className="muted small">{usage(c.id)} establecimientos</span>
+        <strong>{c.name}</strong> <span className="muted small">{plural(usage(c.id), 'establecimiento', 'establecimientos')}</span>
       </span>
       <span className="row gap">
         <StatusBadge status={c.status} />
@@ -49,7 +58,7 @@ export function AdminCategories() {
         <button className="btn btn-ghost btn-sm" onClick={() => setDraft({ id: c.id, name: c.name, parentId: c.parentId, status: c.status })}>
           Editar
         </button>
-        <button className="btn btn-ghost btn-sm danger" onClick={() => remove(c)}>
+        <button className="btn btn-ghost btn-sm danger" onClick={(e) => remove(c, e.currentTarget)}>
           Eliminar
         </button>
       </span>

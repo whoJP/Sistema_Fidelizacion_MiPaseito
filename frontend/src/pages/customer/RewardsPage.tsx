@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { QRCodeSVG } from 'qrcode.react'
-import { Lock } from 'lucide-react'
+import { CheckCircle2, Lock, TimerOff } from 'lucide-react'
 import { useDb } from '../../data/store'
 import { redemptionExpiresAt } from '../../data/actions'
 import {
@@ -14,7 +14,8 @@ import {
 import { formatDateTime, formatInt } from '../../lib/format'
 import { useUser } from '../../session'
 import type { Redemption, Reward } from '../../types/domain'
-import { Badge, Card, Empty, Modal, PageHeader, run } from '../../components/ui'
+import { Badge, Card, Empty, Modal, PageHeader, TimeBar, flash, formatCountdown, rowOf, run, useNow } from '../../components/ui'
+import { confirmDialog } from '../../components/dialog'
 import { businessLocation } from './DirectoryPage'
 
 const STATUS_LABEL: Record<Redemption['status'], [string, 'accent' | 'success' | 'neutral' | 'danger']> = {
@@ -28,7 +29,7 @@ export function RewardsPage() {
   const db = useDb()
   const user = useUser()
   const [confirm, setConfirm] = useState<Reward | null>(null)
-  const [showing, setShowing] = useState<Redemption | null>(null)
+  const [showing, setShowing] = useState<number | null>(null)
   const [busy, setBusy] = useState(false)
 
   const redeem = async (reward: Reward) => {
@@ -36,9 +37,22 @@ export function RewardsPage() {
     const r = await run('createRedemption', { rewardId: reward.id }, 'Canje generado')
     setBusy(false)
     setConfirm(null)
-    if (r) setShowing(r)
+    if (r) setShowing(r.id)
+  }
+
+  const cancel = async (r: Redemption, trigger: HTMLElement) => {
+    const row = rowOf(trigger)
+    const ok = await confirmDialog({
+      title: '¿Cancelar este canje?',
+      message: `El código dejará de funcionar y te devolvemos ${formatInt(r.pointsSpent)} puntos.`,
+      confirmLabel: 'Cancelar canje',
+      cancelLabel: 'Volver',
+      tone: 'danger',
+    })
+    if (ok && (await run('cancelRedemption', { redemptionId: r.id }, 'Canje cancelado, puntos devueltos'))) flash(row)
   }
   const balance = pointsBalance(db, user.id)
+  const redemptionMinutes = Math.round(redemptionExpiresAt(db, new Date(0).toISOString()).getTime() / 60_000)
 
   const [businessId, setBusinessId] = useState<number | null>(null)
   const available = visibleRewards(db).sort((a, b) => a.pointsCost - b.pointsCost)
@@ -107,7 +121,7 @@ export function RewardsPage() {
                   </p>
                 ))}
                 {stock !== null && <p className="small muted">Quedan {stock}</p>}
-                <button className="btn btn-primary btn-block" disabled={blocker !== null} onClick={() => setConfirm(reward)}>
+                <button className="btn btn-block" disabled={blocker !== null} onClick={() => setConfirm(reward)}>
                   {blocker === 'POINTS'
                     ? `Te faltan ${formatInt(reward.pointsCost - balance)} puntos`
                     : blocker === 'TIER'
@@ -136,21 +150,20 @@ export function RewardsPage() {
                   <div>
                     <strong>{titleOf(r.rewardId)}</strong>
                     <div className="muted small">
-                      {business?.name} · {formatInt(r.pointsSpent)} puntos · {formatDateTime(r.createdAt)}
-                      {r.status === 'PENDING' && ` · vence ${formatDateTime(redemptionExpiresAt(db, r.createdAt).toISOString())}`}
+                      {business?.name} · {formatInt(r.pointsSpent)} puntos
+                    </div>
+                    <div className="muted small">
+                      {r.status === 'PENDING' ? <ExpiresIn createdAt={r.createdAt} /> : formatDateTime(r.redeemedAt ?? r.createdAt)}
                     </div>
                   </div>
                   <div className="row gap">
                     <Badge tone={tone}>{label}</Badge>
                     {r.status === 'PENDING' && (
                       <>
-                        <button className="btn btn-sm" onClick={() => setShowing(r)}>
-                          Mostrar código
+                        <button className="btn btn-sm" onClick={() => setShowing(r.id)}>
+                          Mostrar QR
                         </button>
-                        <button
-                          className="btn btn-ghost btn-sm"
-                          onClick={() => run('cancelRedemption', { redemptionId: r.id }, 'Canje cancelado, puntos devueltos')}
-                        >
+                        <button className="btn btn-ghost btn-sm" onClick={(e) => cancel(r, e.currentTarget)}>
                           Cancelar
                         </button>
                       </>
@@ -169,7 +182,10 @@ export function RewardsPage() {
             Vas a canjear <b>{rewardTitle(db, confirm)}</b> en <b>{whereLabel(confirm.id)}</b> por <b>{formatInt(confirm.pointsCost)} puntos</b>. Te
             quedarán {formatInt(balance - confirm.pointsCost)} puntos.
           </p>
-          <p className="muted small">Recibirás un código para presentar en el establecimiento. Si no lo usas a tiempo, los puntos se devuelven.</p>
+          <p className="muted small">
+            Recibirás un QR válido por {redemptionMinutes} minutos para mostrar en el establecimiento: canjea cuando ya estés ahí. Si no se usa a tiempo,
+            los puntos vuelven a tu saldo.
+          </p>
           <div className="row end gap">
             <button className="btn btn-ghost" onClick={() => setConfirm(null)}>
               Volver
@@ -181,21 +197,93 @@ export function RewardsPage() {
         </Modal>
       )}
 
-      {showing && (
+      {showing !== null && (
         <Modal title="Código de canje" onClose={() => setShowing(null)}>
-          <div className="stack center">
-            <div className="qr-box">
-              <QRCodeSVG value={showing.verificationToken} size={184} bgColor="#f3eee0" fgColor="#010102" />
-            </div>
-            <code className="token token-lg">{showing.verificationToken}</code>
-            <h3>{titleOf(showing.rewardId)}</h3>
-            <p className="muted small">
-              Preséntalo en {whereLabel(showing.rewardId)}. Vence el{' '}
-              {formatDateTime(redemptionExpiresAt(db, showing.createdAt).toISOString())}.
-            </p>
-          </div>
+          <RedemptionPass redemptionId={showing} title={titleOf} where={whereLabel} onClose={() => setShowing(null)} />
         </Modal>
       )}
     </div>
   )
+}
+
+/** Live QR for a redemption: counts down, and switches to the final state when validated or expired. */
+function RedemptionPass({
+  redemptionId,
+  title,
+  where,
+  onClose,
+}: {
+  redemptionId: number
+  title: (rewardId: number) => string
+  where: (rewardId: number) => string
+  onClose: () => void
+}) {
+  const db = useDb()
+  const now = useNow(500)
+  const r = db.redemptions.find((x) => x.id === redemptionId)
+  if (!r) return null
+  const created = new Date(r.createdAt).getTime()
+  const expires = redemptionExpiresAt(db, r.createdAt).getTime()
+  const expired = r.status === 'EXPIRED' || (r.status === 'PENDING' && now >= expires)
+
+  if (r.status === 'REDEEMED')
+    return (
+      <div className="stack center pass-done">
+        <span className="pass-icon is-success" aria-hidden>
+          <CheckCircle2 size={32} />
+        </span>
+        <h3>¡Canje validado!</h3>
+        <p className="muted">
+          Disfruta tu <b>{title(r.rewardId)}</b> en {where(r.rewardId)}.
+        </p>
+        <button className="btn btn-primary" onClick={onClose}>
+          Listo
+        </button>
+      </div>
+    )
+
+  if (expired || r.status === 'CANCELLED')
+    return (
+      <div className="stack center pass-done">
+        <span className="pass-icon" aria-hidden>
+          <TimerOff size={32} />
+        </span>
+        <h3>{r.status === 'CANCELLED' ? 'Canje cancelado' : 'El código expiró'}</h3>
+        <p className="muted">
+          {r.status === 'EXPIRED' || r.status === 'CANCELLED'
+            ? `Te devolvimos ${formatInt(r.pointsSpent)} puntos. Puedes volver a canjear cuando estés en el establecimiento.`
+            : `Estamos devolviendo tus ${formatInt(r.pointsSpent)} puntos; se verán en tu saldo en unos segundos.`}
+        </p>
+        <button className="btn" onClick={onClose}>
+          Cerrar
+        </button>
+      </div>
+    )
+
+  return (
+    <div className="stack center">
+      <div className="qr-box">
+        <QRCodeSVG value={r.verificationToken} size={184} bgColor="#f3eee0" fgColor="#010102" />
+      </div>
+      <code className="token token-lg">{r.verificationToken}</code>
+      <h3>{title(r.rewardId)}</h3>
+      <div className="pass-timer">
+        <div className="row between small">
+          <span className="muted">Vence en</span>
+          <strong className="tabular">{formatCountdown(expires - now)}</strong>
+        </div>
+        <TimeBar key={r.id} start={created} end={expires} now={now} />
+      </div>
+      <p className="muted small">
+        Muéstralo en {where(r.rewardId)} para que lo escaneen. Si no se usa a tiempo, los {formatInt(r.pointsSpent)} puntos vuelven a tu saldo.
+      </p>
+    </div>
+  )
+}
+
+function ExpiresIn({ createdAt }: { createdAt: string }) {
+  const db = useDb()
+  const now = useNow(1000)
+  const left = redemptionExpiresAt(db, createdAt).getTime() - now
+  return <>{left > 0 ? `Vence en ${formatCountdown(left)}` : 'Expiró, tus puntos vuelven a tu saldo'}</>
 }

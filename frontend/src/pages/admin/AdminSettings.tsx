@@ -5,12 +5,13 @@ import { SETTING_DEFAULTS, type SettingKey } from '../../domain/loyalty'
 import { formatInt, formatMoney } from '../../lib/format'
 import { signOut } from '../../session'
 import { Card, Field, PageHeader, notify, run } from '../../components/ui'
+import { confirmDialog } from '../../components/dialog'
 import { SETTINGS } from './settingsInfo'
 
 const GROUPS: { title: string; keys: SettingKey[] }[] = [
   { title: 'Cuánto se gana por comprar', keys: ['POINTS_BASE_RATE', 'STATUS_BASE_RATE'] },
   { title: 'Premios por visitar el Paseo', keys: ['DISCOVERY_STATUS_BONUS', 'STREAK_STATUS_BONUS'] },
-  { title: 'Canjes y seguridad', keys: ['REDEMPTION_EXPIRATION_HOURS', 'ABNORMAL_AMOUNT_THRESHOLD'] },
+  { title: 'Canjes y seguridad', keys: ['REDEMPTION_EXPIRATION_MINUTES', 'ABNORMAL_AMOUNT_THRESHOLD'] },
 ]
 
 export function AdminSettings() {
@@ -35,7 +36,13 @@ export function AdminSettings() {
   }
 
   const resetDemo = async () => {
-    if (!confirm('¿Restablecer todos los datos de demostración? Se borran los cambios hechos en la base de datos.')) return
+    const ok = await confirmDialog({
+      title: '¿Restablecer los datos de demostración?',
+      message: 'Se borran todos los cambios hechos en la base de datos y se cierra la sesión.',
+      confirmLabel: 'Restablecer',
+      tone: 'danger',
+    })
+    if (!ok) return
     try {
       await api.resetDemo()
       notify('success', 'Datos de demostración restablecidos, vuelve a ingresar')

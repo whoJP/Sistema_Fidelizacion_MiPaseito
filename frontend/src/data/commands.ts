@@ -2,7 +2,7 @@
 // authenticated user as `actor`; the frontend only imports the types and calls them through `run()`.
 import * as A from './actions'
 import { SETTING_DEFAULTS } from '../domain/loyalty'
-import type { BadgeType, BusinessMemberRole, Database, DayOfWeek, FraudAlertStatus, UserStatus } from '../types/domain'
+import type { BadgeType, BusinessMemberRole, CancellationRequestStatus, Database, DayOfWeek, FraudAlertStatus, UserStatus } from '../types/domain'
 
 export interface Actor {
   id: number
@@ -76,16 +76,24 @@ type Scope = { businessIds: number[]; categoryIds: number[] }
 
 export const commands = {
   // ---------- Merchant ----------
-  registerPurchase: (db: Database, actor: Actor, input: { customerId: number; businessId: number; amount: number }) =>
+  registerPurchase: (db: Database, actor: Actor, input: { customerId: number; businessId: number; items: A.PurchaseLine[] }) =>
     A.registerPurchase(db, {
       customerId: id(input.customerId, 'Cliente'),
       businessId: id(input.businessId, 'Establecimiento'),
-      amount: num(input.amount, 'Monto'),
+      items: (Array.isArray(input.items) ? input.items : []).map((line) => ({
+        catalogItemId: id(line?.catalogItemId, 'Producto'),
+        quantity: int(line?.quantity, 'Cantidad'),
+      })),
       performedById: actor.id,
     }),
 
-  cancelTransaction: (db: Database, actor: Actor, input: { transactionId: number }) => {
-    A.cancelTransaction(db, id(input.transactionId), actor.id)
+  undoPurchase: (db: Database, actor: Actor, input: { transactionId: number }) => {
+    A.undoPurchase(db, id(input.transactionId, 'Compra'), actor.id)
+    return true
+  },
+
+  requestCancellation: (db: Database, actor: Actor, input: { transactionId: number; reason: string }) => {
+    A.requestCancellation(db, { transactionId: id(input.transactionId, 'Compra'), reason: str(input.reason) }, actor.id)
     return true
   },
 
@@ -100,7 +108,7 @@ export const commands = {
         businessId: id(input.data.businessId, 'Establecimiento'),
         name: str(input.data.name),
         description: optionalStr(input.data.description),
-        price: input.data.price === null ? null : num(input.data.price, 'Precio'),
+        price: num(input.data.price, 'Precio'),
         isAvailable: input.data.isAvailable !== false,
       },
       actor.id,
@@ -138,9 +146,43 @@ export const commands = {
     return true
   },
 
+  dismissNotification: (db: Database, actor: Actor, input: { notificationId: number }) => {
+    A.dismissNotification(db, id(input.notificationId, 'Aviso'), actor.id)
+    return true
+  },
+
+  // ---------- Any signed-in user ----------
+  updateProfile: (
+    db: Database,
+    actor: Actor,
+    input: { firstName: string; lastName: string; email: string; phone: string | null; birthDate: string | null },
+  ) => {
+    A.updateProfile(db, actor.id, {
+      firstName: str(input.firstName),
+      lastName: str(input.lastName),
+      email: str(input.email),
+      phone: optionalStr(input.phone),
+      birthDate: dateKey(input.birthDate),
+    })
+    return true
+  },
+
   // ---------- Admin ----------
   reviewFraudAlert: (db: Database, actor: Actor, input: { alertId: number; decision: Exclude<FraudAlertStatus, 'OPEN'> }) => {
     A.reviewFraudAlert(db, id(input.alertId), oneOf(input.decision, ['RESOLVED', 'DISMISSED'] as const, 'Decisión'), actor.id)
+    return true
+  },
+
+  reviewCancellation: (db: Database, actor: Actor, input: { requestId: number; decision: Exclude<CancellationRequestStatus, 'PENDING'>; note: string }) => {
+    A.reviewCancellation(
+      db,
+      {
+        requestId: id(input.requestId, 'Solicitud'),
+        decision: oneOf(input.decision, ['APPROVED', 'REJECTED'] as const, 'Decisión'),
+        note: str(input.note),
+      },
+      actor.id,
+    )
     return true
   },
 

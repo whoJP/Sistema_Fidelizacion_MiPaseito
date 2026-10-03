@@ -42,7 +42,7 @@ export function AdminRewards() {
                   <th>Tipo</th>
                   <th className="num">Costo</th>
                   <th>Nivel mínimo</th>
-                  <th className="num">Canjes / disponibles</th>
+                  <th className="num">Canjes</th>
                   <th>Vigencia</th>
                   <th>Estado</th>
                 </tr>
@@ -63,7 +63,7 @@ export function AdminRewards() {
                     <td className="num">{formatInt(r.pointsCost)} puntos</td>
                     <td>{db.tiers.find((t) => t.id === r.minimumTierId)?.name ?? 'Cualquiera'}</td>
                     <td className="num">
-                      {rewardRedeemedCount(db, r.id)} / {r.stock ?? '∞'}
+                      {r.stock === null ? `${rewardRedeemedCount(db, r.id)}, sin límite` : `${rewardRedeemedCount(db, r.id)} de ${r.stock}`}
                     </td>
                     <td className="small">
                       {r.startsAt || r.endsAt ? `${r.startsAt ? formatDate(r.startsAt) : '…'} - ${r.endsAt ? formatDate(r.endsAt) : '…'}` : 'Sin límite'}

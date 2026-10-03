@@ -10,15 +10,15 @@ import type {
   Tier,
   Transaction,
 } from '../types/domain'
-import { formatMoney } from '../lib/format'
-import { localDateKey } from './time'
+import { formatDateKey, formatInt, formatMoney } from '../lib/format'
+import { localDateKey, todayKey } from './time'
 
 export const SETTING_DEFAULTS = {
   POINTS_BASE_RATE: '1',
   STATUS_BASE_RATE: '1',
   DISCOVERY_STATUS_BONUS: '50',
   STREAK_STATUS_BONUS: '10',
-  REDEMPTION_EXPIRATION_HOURS: '48',
+  REDEMPTION_EXPIRATION_MINUTES: '15',
   ABNORMAL_AMOUNT_THRESHOLD: '5000',
 } as const
 
@@ -129,6 +129,13 @@ export function isGlobalScope(scope: Scope): boolean {
 
 export function scopeBusinesses(db: Database, scope: Scope): Business[] {
   return db.businesses.filter((b) => isLive(b) && b.status === 'ACTIVE' && inScope(db, scope, b.id))
+}
+
+/** Products of a purchase with their name, for receipts and history. */
+export function purchaseLines(db: Database, transactionId: number) {
+  return db.transactionItems
+    .filter((i) => i.transactionId === transactionId)
+    .map((i) => ({ ...i, name: db.catalogItems.find((c) => c.id === i.catalogItemId)?.name ?? 'Producto' }))
 }
 
 const withinWindow = (now: Date, startsAt: string | null, endsAt: string | null) =>
@@ -419,6 +426,33 @@ export function earnedBadges(db: Database, userId: number): EarnedBadge[] {
   return [...fromBadges, ...fromEvents].sort((a, b) => b.earnedAt.localeCompare(a.earnedAt))
 }
 
+/** Badges still reachable (special dates already past are dropped), closest to completion first. */
+export function pendingBadges(db: Database, userId: number, now = new Date()): ({ badge: Badge } & BadgeProgress)[] {
+  const today = todayKey(now)
+  return visibleBadges(db)
+    .map((badge) => ({ badge, ...badgeProgress(db, badge, userId) }))
+    .filter((b) => !b.earnedAt && !(b.badge.type === 'SPECIAL_DATE' && b.badge.date! < today))
+    .sort((a, b) => b.current / b.goal - a.current / a.goal)
+}
+
+/** What is left to earn a badge, in the customer's words. */
+export function badgeHint(db: Database, badge: Badge, current: number, goal: number): string {
+  switch (badge.type) {
+    case 'SPECIAL_DATE':
+      return `Visita el Paseo el ${formatDateKey(badge.date!)}`
+    case 'TIER_REACHED':
+      return `Te faltan ${formatInt(goal - current)} puntos de nivel`
+    case 'CATEGORY_PURCHASES':
+      return `${formatInt(current)} de ${formatInt(goal)} compras en ${db.categories.find((c) => c.id === badge.categoryId)?.name ?? 'la categoría'}`
+    case 'PURCHASE_COUNT':
+      return `${formatInt(current)} de ${formatInt(goal)} compras`
+    case 'DISTINCT_BUSINESSES':
+      return `${formatInt(current)} de ${formatInt(goal)} establecimientos`
+    case 'MISSIONS_COMPLETED':
+      return `${formatInt(current)} de ${formatInt(goal)} misiones`
+  }
+}
+
 // ---------- Passport ----------
 
 export function discoveredBusinessIds(db: Database, userId: number): Set<number> {
@@ -476,6 +510,16 @@ export function weeklyStreak(db: Database, userId: number, now = new Date()): St
     cursor = shiftWeek(cursor, -1)
   }
   return { current, best, activeThisWeek }
+}
+
+/** Whether the customer bought in each of the last `count` weeks, oldest first; the last item is this week. */
+export function recentWeeks(db: Database, userId: number, count: number, now = new Date()): { key: string; active: boolean }[] {
+  const weeks = new Set(completedTransactions(db, userId).map((t) => weekKey(new Date(t.createdAt))))
+  const thisWeek = weekKey(now)
+  return Array.from({ length: count }, (_, i) => {
+    const key = shiftWeek(thisWeek, i - count + 1)
+    return { key, active: weeks.has(key) }
+  })
 }
 
 function shiftWeek(key: string, delta: number): string {

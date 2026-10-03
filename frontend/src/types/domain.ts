@@ -1,6 +1,6 @@
 // Mirror of backend/prisma/schema.prisma. Dates are ISO strings, Decimals are numbers.
 
-export type UserRole = 'CUSTOMER' | 'ADMIN'
+export type UserRole = 'CUSTOMER' | 'MERCHANT' | 'ADMIN'
 export type UserStatus = 'ACTIVE' | 'SUSPENDED'
 export type BusinessStatus = 'ACTIVE' | 'INACTIVE'
 export type DayOfWeek =
@@ -53,6 +53,7 @@ export type FraudAlertType =
   | 'HIGH_FREQUENCY'
   | 'ABNORMAL_AMOUNT'
 export type FraudAlertStatus = 'OPEN' | 'RESOLVED' | 'DISMISSED'
+export type CancellationRequestStatus = 'PENDING' | 'APPROVED' | 'REJECTED'
 
 export interface User {
   id: number
@@ -118,7 +119,7 @@ export interface CatalogItem {
   businessId: number
   name: string
   description: string | null
-  price: number | null
+  price: number
   isAvailable: boolean
   deletedAt: string | null
 }
@@ -140,6 +141,37 @@ export interface Transaction {
   amount: number
   status: TransactionStatus
   createdAt: string
+}
+
+export interface TransactionItem {
+  id: number
+  transactionId: number
+  catalogItemId: number
+  quantity: number
+  /** Catalog price when the purchase was registered. */
+  unitPrice: number
+}
+
+export interface CancellationRequest {
+  id: number
+  transactionId: number
+  requestedById: number
+  reason: string
+  status: CancellationRequestStatus
+  reviewedById: number | null
+  /** Admin's reason: shown to the customer when approved, to the manager when rejected. */
+  reviewNote: string | null
+  createdAt: string
+  reviewedAt: string | null
+}
+
+export interface Notification {
+  id: number
+  userId: number
+  title: string
+  message: string
+  createdAt: string
+  readAt: string | null
 }
 
 export interface PointMovement {
@@ -329,6 +361,9 @@ export interface Database {
   catalogItems: CatalogItem[]
   tiers: Tier[]
   transactions: Transaction[]
+  transactionItems: TransactionItem[]
+  cancellationRequests: CancellationRequest[]
+  notifications: Notification[]
   pointMovements: PointMovement[]
   statusMovements: StatusMovement[]
   rewards: Reward[]

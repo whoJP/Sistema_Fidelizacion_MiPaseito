@@ -89,7 +89,7 @@ Cada rol tiene su propia línea de color para que se reconozca de un vistazo qui
 | Bordes | `--line` al 16% | Al 8% y al 16% (más visibles) | Al 8% y al 16% (más visibles) |
 | Barra lateral | Translúcida con desenfoque | Sólida | Sólida |
 | Radios | 14 / 10 / 6 px | 10 / 7 / 5 px | 10 / 7 / 5 px |
-| Marca | "Paseo **Points**", monograma "P" circular | "Paseo **Points**" con el nombre del local | "Paseo **Aranjuez**", monograma "PA" cuadrado, "Consola interna" |
+| Marca | "Paseo **Club**", gema tallada en medallón circular | "Paseo **Club**" con el nombre del local | "Paseo **Aranjuez**", monograma "PA" cuadrado, "Consola interna" |
 
 **Rasgos comunes del personal** (administración y comercio):
 
@@ -227,5 +227,6 @@ Las celdas de acciones (`td.row`) se fuerzan a `display: table-cell` para que el
 | `frontend/src/pages/customer/MissionsPage.tsx` | Tarjetas de misión con anillo de progreso y filas agrupadas. |
 | `frontend/src/layouts/AppShell.tsx` | Barra lateral, marca según el rol, clase de tema `shell-*`, barra del personal y enlace para saltar al contenido. |
 | `frontend/src/pages/LoginPage.tsx` | Portada editorial. |
-| `frontend/public/favicon.svg` | Monograma dorado sobre negro. |
+| `frontend/src/components/BrandMark.tsx` | Logo de Paseo Club: gema tallada (`ClubGem`, toma `currentColor`) dentro del medallón (`BrandMark`). La misma gema, en el metal de cada nivel, ilustra la escalera de niveles del login. |
+| `frontend/public/favicon.svg` | Gema dorada en medallón sobre negro. |
 | `frontend/index.html` | `theme-color #000000` y metadatos. |

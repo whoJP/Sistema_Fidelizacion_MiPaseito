@@ -39,9 +39,16 @@ export async function loadSnapshot(client: unknown = prisma): Promise<Database> 
 export function viewFor(db: Database, viewerId: number): Database {
   const viewer = db.users.find((u) => u.id === viewerId)
   if (viewer?.role === 'ADMIN') return db
+  const businessId = db.businessMembers.find((m) => m.userId === viewerId && m.status === 'ACTIVE')?.businessId
+  const visibleTx = new Set(
+    db.transactions.filter((t) => t.customerId === viewerId || (businessId !== undefined && t.businessId === businessId)).map((t) => t.id),
+  )
   return {
     ...db,
     users: db.users.map((u) => (u.id === viewerId ? u : { ...u, email: '', phone: null, birthDate: null })),
+    transactionItems: db.transactionItems.filter((i) => visibleTx.has(i.transactionId)),
+    cancellationRequests: viewer?.role === 'MERCHANT' ? db.cancellationRequests.filter((r) => visibleTx.has(r.transactionId)) : [],
+    notifications: db.notifications.filter((n) => n.userId === viewerId),
     redemptions: db.redemptions.map((r) =>
       r.status === 'PENDING' && r.userId !== viewerId ? { ...r, verificationToken: '' } : r,
     ),

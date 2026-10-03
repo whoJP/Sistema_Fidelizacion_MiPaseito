@@ -1,5 +1,5 @@
 import { Link, useParams } from 'react-router-dom'
-import { ArrowLeft, Clock, MapPin, Phone, Sparkles } from 'lucide-react'
+import { ArrowLeft, Clock, MapPin, Megaphone, Phone } from 'lucide-react'
 import { useDb } from '../../data/store'
 import { businessCategoryIds, discoveredBusinessIds, promotionsForBusiness, rewardTitle, visibleRewards } from '../../domain/loyalty'
 import { DAY_LABELS, DAYS_IN_ORDER, formatInt, formatMoney } from '../../lib/format'
@@ -67,12 +67,12 @@ export function BusinessDetailPage() {
 
           {promos.length > 0 && (
             <Card>
-              <CardHead icon={Sparkles} title="Promociones" />
+              <CardHead icon={Megaphone} title="Promociones" />
               <ul className="list">
                 {promos.map((p) => (
                   <li key={p.id} className="list-row">
                     <span>{p.name}</span>
-                    <Badge tone="accent">{p.type === 'POINTS_MULTIPLIER' ? `×${p.value} puntos` : `+${formatInt(p.value)} puntos`}</Badge>
+                    <Badge tone="accent">{p.type === 'POINTS_MULTIPLIER' ? `Puntos ×${p.value}` : `+${formatInt(p.value)} puntos`}</Badge>
                   </li>
                 ))}
               </ul>
@@ -93,7 +93,7 @@ export function BusinessDetailPage() {
                     </div>
                     <span className="row gap">
                       {!item.isAvailable && <Badge>No disponible</Badge>}
-                      {item.price !== null && <strong>{formatMoney(item.price)}</strong>}
+                      <strong>{formatMoney(item.price)}</strong>
                     </span>
                   </li>
                 ))}

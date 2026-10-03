@@ -3,7 +3,8 @@ import { useDb } from '../../data/store'
 import { rewardTitle } from '../../domain/loyalty'
 import { FRAUD_TYPE_LABELS, formatDateTime, formatMoney, fullName } from '../../lib/format'
 import type { FraudAlert, FraudAlertStatus, FraudAlertType } from '../../types/domain'
-import { Badge, Card, Empty, PageHeader, run } from '../../components/ui'
+import { Badge, Card, Empty, PageHeader, run, vanish } from '../../components/ui'
+import { confirmDialog } from '../../components/dialog'
 
 const STATUS_LABEL: Record<FraudAlertStatus, string> = { OPEN: 'Por revisar', RESOLVED: 'Confirmadas', DISMISSED: 'Descartadas' }
 
@@ -38,16 +39,21 @@ export function AdminFraud() {
     }
   }
 
-  const review = (a: FraudAlert, decision: 'RESOLVED' | 'DISMISSED', held: boolean) => {
-    const message =
-      decision === 'RESOLVED'
+  const review = async (a: FraudAlert, decision: 'RESOLVED' | 'DISMISSED', held: boolean, row: HTMLElement) => {
+    const confirmFraud = decision === 'RESOLVED'
+    const ok = await confirmDialog({
+      title: confirmFraud ? '¿Confirmar fraude?' : '¿Descartar la alerta?',
+      message: confirmFraud
         ? held
-          ? '¿Confirmar fraude? La compra se anula y el cliente no recibe puntos.'
-          : '¿Confirmar fraude? Se marca como confirmada para el registro; los puntos ya acreditados no cambian.'
+          ? 'La compra se anula y el cliente no recibe puntos.'
+          : 'Se marca como confirmada para el registro; los puntos ya acreditados no cambian.'
         : held
-          ? '¿Descartar la alerta? La compra se aprueba y el cliente recibe sus puntos.'
-          : '¿Descartar la alerta? Se archiva sin cambios.'
-    if (confirm(message)) void run('reviewFraudAlert', { alertId: a.id, decision }, decision === 'RESOLVED' ? 'Alerta confirmada' : 'Alerta descartada')
+          ? 'La compra se aprueba y el cliente recibe sus puntos.'
+          : 'Se archiva sin cambios.',
+      confirmLabel: confirmFraud ? 'Confirmar fraude' : 'Descartar alerta',
+      tone: confirmFraud ? 'danger' : 'primary',
+    })
+    if (ok) void vanish(row, () => run('reviewFraudAlert', { alertId: a.id, decision }, confirmFraud ? 'Alerta confirmada' : 'Alerta descartada'))
   }
 
   return (
@@ -114,10 +120,10 @@ export function AdminFraud() {
                   </div>
                   {a.status === 'OPEN' && (
                     <div className="row gap">
-                      <button className="btn btn-sm danger-solid" onClick={() => review(a, 'RESOLVED', held)}>
+                      <button className="btn btn-sm danger-solid" onClick={(e) => review(a, 'RESOLVED', held, e.currentTarget)}>
                         Confirmar fraude
                       </button>
-                      <button className="btn btn-ghost btn-sm" onClick={() => review(a, 'DISMISSED', held)}>
+                      <button className="btn btn-ghost btn-sm" onClick={(e) => review(a, 'DISMISSED', held, e.currentTarget)}>
                         Descartar
                       </button>
                     </div>

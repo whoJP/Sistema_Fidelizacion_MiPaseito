@@ -65,7 +65,9 @@ const submit = async (e: FormEvent) => {
   `Status` → **puntos de nivel** (tier progress, never spent), `Tier` → **nivel** (Bronce / Plata / Oro / Platinum),
   `MANAGER` / `STAFF` → **Encargado** / **Personal** (`MEMBER_ROLE_LABELS`), email → **correo**, ADMIN →
   **Administrador**. Never show enum values, setting keys or table names; map them with the label maps in
-  `lib/format.ts`. Other terms: Pasaporte, Misiones, Insignias, Eventos, Canje, Establecimiento. "Paseo Points" is the brand.
+  `lib/format.ts`. Other terms: Pasaporte, Misiones, Insignias, Eventos, Canje, Establecimiento. The visible brand is **"Paseo Club"**
+  (wordmark "Paseo **Club**" + the faceted gem from `components/BrandMark.tsx`); "Paseo Points" stays only as the
+  project/code name. The currency stays **puntos**.
 - Admin copy is for non-technical staff: short, plain, with units (Bs, horas, puntos) and one-line hints.
 - Rewards are created by the business manager (`MerchantRewardsPage`); the admin only views them. Show a reward with
   `rewardTitle` / `rewardConditions`, never a free-text name.
@@ -75,8 +77,16 @@ const submit = async (e: FormEvent) => {
 
 - Every input inside `<Field label=…>`; icon-only buttons need `aria-label`.
 - Feedback for every action: success/error toast via `run`/`notify`; empty states with `<Empty>`.
-- Destructive actions ask `confirm()`; show irreversible effects in the message.
+- Destructive actions ask `await confirmDialog({ title, message, tone: 'danger' })` from `components/dialog.tsx`; show irreversible effects in the message. Never use native `confirm()`/`alert()`/`prompt()`.
 - Keep tap targets ≥ 40px and layouts usable at 375px width (the customer view is used on phones).
+- Phones: `AppShell` swaps the sidebar for a top bar and a bottom tab bar (max 5 tabs; mark `primary` items, the
+  rest go under "Más"). Wide tables use `className="table table-stack"` with `data-label` on each cell so they become
+  cards; forms put their buttons in `.form-actions`; sticky bottoms must clear `var(--tabbar-h)`.
+- Identifying a customer or a canje always goes through `<ScanOrCode kind="customer" | "redemption">`: live camera
+  scan (no gallery uploads) or the short code. The customer code is 6 digits shown under the QR on the card
+  (`/api/me/qr-token` returns `token` for the QR and `code`); never show the `PP1.…` token in the UI.
+- The camera needs https outside localhost: `npm run dev` serves https with a self-signed certificate (open
+  `https://<ip-de-la-pc>:5173` on the phone and accept the warning); `HTTP=1 npm run dev` serves plain http.
 
 ## Verify before finishing
 
@@ -87,4 +97,6 @@ npm run lint    # oxlint
 ```
 
 With the backend running (`cd backend && npm run dev`), exercise the changed screen with a demo account
-(`ana@demo.paseo`, `luis@demo.paseo`, `sofia@demo.paseo`, `admin@demo.paseo`, password `demo1234`).
+(`ana@demo.paseo` cliente, `luis@demo.paseo` encargado, `carla@demo.paseo` personal, `admin@demo.paseo`, password
+`demo1234`). The view follows `User.role`: CUSTOMER → `/app`, MERCHANT → `/merchant/:businessId` (its only business),
+ADMIN → `/admin`.

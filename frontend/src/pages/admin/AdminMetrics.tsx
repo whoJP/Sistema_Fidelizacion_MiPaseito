@@ -4,7 +4,7 @@ import { useDb } from '../../data/store'
 import { computeMetrics, summaryCsv, transactionsCsv, type Breakdown, type Period } from '../../domain/metrics'
 import { rewardTitle } from '../../domain/loyalty'
 import { addDaysKey, todayKey } from '../../domain/time'
-import { DAY_LABELS, DAYS_IN_ORDER, formatDateKey, formatInt, formatMoney } from '../../lib/format'
+import { DAY_LABELS, DAYS_IN_ORDER, formatDateKey, formatInt, formatMoney, plural } from '../../lib/format'
 import { Card, Empty, Field, PageHeader, Progress, Stat } from '../../components/ui'
 
 const pct = (n: number) => `${(n * 100).toFixed(1).replace('.', ',')} %`
@@ -51,8 +51,8 @@ function BreakdownList({ rows, empty }: { rows: Breakdown[]; empty: string }) {
         <li key={r.key} className="mission-mini">
           <div className="row between">
             <strong>{r.label}</strong>
-            <span className="small muted">
-              {formatMoney(r.sales)} · {formatInt(r.purchases)} compras · {formatInt(r.customers)} clientes
+            <span className="small muted tabular">
+              {formatMoney(r.sales)} · {plural(r.purchases, 'compra', 'compras')}, {plural(r.customers, 'cliente', 'clientes')}
             </span>
           </div>
           <Progress value={r.sales} max={max} />
@@ -147,7 +147,7 @@ export function AdminMetrics() {
         ) : (
           <div className="bars" role="img" aria-label="Ventas por día">
             {m.daily.map((d) => (
-              <div key={d.date} className="bar" title={`${formatDateKey(d.date)}: ${formatMoney(d.sales)} · ${d.purchases} compras`}>
+              <div key={d.date} className="bar" title={`${formatDateKey(d.date)}: ${formatMoney(d.sales)} · ${plural(d.purchases, 'compra', 'compras')}`}>
                 <span className="bar-fill" style={{ height: `${(d.sales / maxDaily) * 100}%` }} />
               </div>
             ))}
@@ -206,7 +206,7 @@ export function AdminMetrics() {
         <Stat
           label="Canjes solicitados"
           value={formatInt(m.redemptions.created)}
-          hint={`${m.redemptions.redeemed} entregados · ${m.redemptions.pending} pendientes · ${m.redemptions.expired} vencidos · ${m.redemptions.cancelled} cancelados`}
+          hint={`${m.redemptions.redeemed} entregados, ${m.redemptions.pending} pendientes, ${m.redemptions.expired} vencidos y ${m.redemptions.cancelled} cancelados`}
         />
       </div>
 
@@ -226,7 +226,7 @@ export function AdminMetrics() {
                       <div className="muted small">{businessName(r.businessId)}</div>
                     </div>
                     <span className="small">
-                      {formatInt(r.count)} canjes · {formatInt(r.points)} puntos
+                      {plural(r.count, 'canje', 'canjes')} · {formatInt(r.points)} puntos
                     </span>
                   </li>
                 )
@@ -246,7 +246,7 @@ export function AdminMetrics() {
                   <span>
                     {businessName(pair.a)} + {businessName(pair.b)}
                   </span>
-                  <strong>{formatInt(pair.customers)} clientes</strong>
+                  <strong>{plural(pair.customers, 'cliente', 'clientes')}</strong>
                 </li>
               ))}
             </ul>
@@ -304,7 +304,7 @@ export function AdminMetrics() {
           <>
             {busiest && (
               <p className="muted small">
-                Momento con más compras: {DAY_LABELS[DAYS_IN_ORDER[busiest.d]]} de {busiest.h}:00 a {busiest.h + 1}:00 ({busiest.count} compras).
+                Momento con más compras: {DAY_LABELS[DAYS_IN_ORDER[busiest.d]]} de {busiest.h}:00 a {busiest.h + 1}:00 ({plural(busiest.count, 'compra', 'compras')}).
               </p>
             )}
             <div className="heatmap" style={{ '--cols': hours.length } as CSSProperties}>
@@ -321,7 +321,7 @@ export function AdminMetrics() {
                     <span
                       key={h}
                       className="heat-cell"
-                      title={`${DAY_LABELS[DAYS_IN_ORDER[d]]} ${h}:00 · ${row[h]} compras`}
+                      title={`${DAY_LABELS[DAYS_IN_ORDER[d]]} ${h}:00 · ${plural(row[h], 'compra', 'compras')}`}
                       style={{ opacity: row[h] === 0 ? 0.06 : 0.2 + (row[h] / maxPeak) * 0.8 }}
                     />
                   ))}

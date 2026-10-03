@@ -1,5 +1,5 @@
 import type { CommandInput, CommandName, CommandResult } from './commands'
-import type { Database } from '../types/domain'
+import type { BusinessMemberRole, Database } from '../types/domain'
 
 export class ApiError extends Error {
   readonly status: number
@@ -69,7 +69,18 @@ export const api = {
   snapshot: (since: number) => request<SnapshotPayload | undefined>(`/snapshot?since=${since}`),
   command: <K extends CommandName>(name: K, input: CommandInput<K>) =>
     request<SnapshotPayload & { result: CommandResult<K> }>(`/commands/${name}`, { method: 'POST', body: input }),
-  qrToken: () => request<{ token: string; expiresAt: string }>('/me/qr-token'),
+  qrToken: () => request<{ token: string; code: string; expiresAt: string }>('/me/qr-token'),
+  changePassword: (currentPassword: string, newPassword: string) =>
+    request<{ ok: true }>('/me/password', { method: 'POST', body: { currentPassword, newPassword } }),
+  createMerchant: (input: {
+    email: string
+    password: string
+    firstName: string
+    lastName: string
+    phone: string
+    businessId: number
+    role: BusinessMemberRole
+  }) => request<SnapshotPayload & { result: { id: number } }>('/admin/merchants', { method: 'POST', body: input }),
   identifyCustomer: (code: string) =>
     request<IdentifiedCustomer>('/customers/identify', { method: 'POST', body: { code } }),
   resetDemo: () => request<{ ok: true }>('/demo/reset', { method: 'POST' }),

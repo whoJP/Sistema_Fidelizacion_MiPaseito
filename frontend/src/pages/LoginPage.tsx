@@ -1,10 +1,21 @@
-import { useState, type FormEvent } from 'react'
+import { useState, type CSSProperties, type FormEvent } from 'react'
 import { Navigate, useNavigate } from 'react-router-dom'
-import { ArrowUpRight } from 'lucide-react'
+import { ArrowRight, ArrowUpRight, Coffee, Glasses, Shirt, ShoppingBag, UtensilsCrossed, type LucideIcon } from 'lucide-react'
 import { ApiError, api, type SessionPayload } from '../data/api'
 import { DEMO_ACCOUNTS, DEMO_PASSWORD } from '../data/demoAccounts'
 import { signIn, signOut, useSession } from '../session'
 import { Field, Toaster, notify } from '../components/ui'
+import { BrandMark, ClubGem } from '../components/BrandMark'
+import { DialogHost, confirmDialog } from '../components/dialog'
+
+const TIER_LADDER = ['Bronce', 'Plata', 'Oro', 'Platinum'] as const
+
+const PASSPORT_PREVIEW: { icon: LucideIcon; sealed: boolean }[] = [
+  { icon: Coffee, sealed: true },
+  { icon: Shirt, sealed: true },
+  { icon: UtensilsCrossed, sealed: false },
+  { icon: Glasses, sealed: false },
+]
 
 export function LoginPage() {
   const session = useSession()
@@ -33,11 +44,17 @@ export function LoginPage() {
   const onSubmit = (e: FormEvent) => {
     e.preventDefault()
     if (mode === 'login') return attempt(() => api.login(email, password))
-    return attempt(() => api.register({ email, password, ...form }), 'Bienvenido a Paseo Points')
+    return attempt(() => api.register({ email, password, ...form }), 'Bienvenido a Paseo Club')
   }
 
   const resetDemo = async () => {
-    if (!confirm('¿Restablecer los datos de demostración? Se borran los cambios hechos en la base de datos.')) return
+    const ok = await confirmDialog({
+      title: '¿Restablecer los datos de demostración?',
+      message: 'Se borran todos los cambios hechos en la base de datos.',
+      confirmLabel: 'Restablecer',
+      tone: 'danger',
+    })
+    if (!ok) return
     setBusy(true)
     try {
       await api.resetDemo()
@@ -54,11 +71,12 @@ export function LoginPage() {
     <div className="auth">
       <section className="auth-hero">
         <div className="brand brand-lg">
-          <span className="brand-mark" aria-hidden>
-            P
-          </span>
-          <span className="brand-name">
-            Paseo <b>Points</b>
+          <BrandMark size={52} />
+          <span className="brand-text">
+            <span className="brand-name">
+              Paseo <b>Club</b>
+            </span>
+            <span className="brand-context">Paseo Aranjuez</span>
           </span>
         </div>
 
@@ -66,20 +84,50 @@ export function LoginPage() {
           <h1>
             Cada visita a Paseo Aranjuez <em>suma.</em>
           </h1>
-          <p>Acumula puntos en tiendas, el Paseo de Comidas y la terraza El 4to. Sube de nivel y canjea recompensas.</p>
-          <div className="auth-pillars">
-            <div>
-              <strong>Un punto</strong>
-              <span>por cada boliviano</span>
-            </div>
-            <div>
-              <strong>Cuatro niveles</strong>
-              <span>de Bronce a Platinum</span>
-            </div>
-            <div>
-              <strong>Pasaporte</strong>
-              <span>un sello por cada local</span>
-            </div>
+          <p>Tus compras en el Paseo se convierten en puntos, premios y beneficios que crecen contigo.</p>
+
+          <div className="auth-showcase">
+            <article className="auth-tile">
+              <span className="auth-tile-icon" aria-hidden>
+                <ShoppingBag size={20} />
+              </span>
+              <h3>Compra y suma</h3>
+              <p>Muestra tu QR al pagar y cada compra se convierte en puntos para canjear.</p>
+              <div className="auth-earn" aria-label="Ejemplo: una compra de 120 bolivianos suma 120 puntos">
+                <span>Compras Bs 120</span>
+                <ArrowRight size={14} aria-hidden />
+                <span className="auth-earn-pts">+120 puntos</span>
+              </div>
+            </article>
+
+            <article className="auth-tile">
+              <div className="auth-stamps" aria-hidden>
+                {PASSPORT_PREVIEW.map(({ icon: Icon, sealed }, i) => (
+                  <span key={i} className={sealed ? 'auth-stamp auth-stamp-on' : 'auth-stamp'}>
+                    <Icon size={16} />
+                  </span>
+                ))}
+              </div>
+              <h3>Pasaporte del Paseo</h3>
+              <p>Tu ruta por el Paseo. La primera compra en cada local nuevo lo sella y te acerca al siguiente nivel.</p>
+            </article>
+
+            <article className="auth-tile auth-tile-wide">
+              <div className="auth-tile-head">
+                <h3>Sube de nivel</h3>
+                <p>Mientras más compras, más alto llegas y más puntos ganas en cada compra.</p>
+              </div>
+              <ol className="tier-ladder">
+                {TIER_LADDER.map((tier, i) => (
+                  <li key={tier} className={`tier-step tier-step-${tier.toLowerCase()}`}>
+                    <span className="tier-gem" style={{ '--step': i } as CSSProperties}>
+                      <ClubGem size={18 + i * 5} />
+                    </span>
+                    <span className="tier-step-name">{tier}</span>
+                  </li>
+                ))}
+              </ol>
+            </article>
           </div>
         </div>
 
@@ -87,7 +135,19 @@ export function LoginPage() {
       </section>
 
       <section className="auth-panel" aria-label="Acceso">
-        <h2>{mode === 'login' ? 'Bienvenido de vuelta' : 'Crea tu cuenta'}</h2>
+        <div className="auth-panel-brand">
+          <BrandMark size={44} />
+          <span className="brand-text">
+            <span className="brand-name">
+              Paseo <b>Club</b>
+            </span>
+            <span className="brand-context">Cada visita a Paseo Aranjuez suma</span>
+          </span>
+        </div>
+        <h2>{mode === 'login' ? 'Bienvenido de vuelta' : 'Únete a Paseo Club'}</h2>
+        <p className="auth-panel-lead muted">
+          {mode === 'login' ? 'Ingresa con tu correo para ver tus puntos y premios.' : 'Crea tu cuenta gratis y empieza a sumar puntos desde tu primera compra.'}
+        </p>
 
         <div className="tabs" role="tablist">
           <button role="tab" aria-selected={mode === 'login'} className={mode === 'login' ? 'tab tab-active' : 'tab'} onClick={() => setMode('login')}>
@@ -105,7 +165,17 @@ export function LoginPage() {
 
         <form className="stack" onSubmit={onSubmit}>
           <Field label="Correo electrónico">
-            <input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" />
+            <input
+              type="email"
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              autoComplete="email"
+              inputMode="email"
+              autoCapitalize="none"
+              spellCheck={false}
+              placeholder="tucorreo@ejemplo.com"
+            />
           </Field>
           {mode === 'register' && (
             <div className="grid-2">
@@ -130,14 +200,20 @@ export function LoginPage() {
               autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
             />
           </Field>
-          <button className="btn btn-primary btn-block" type="submit" disabled={busy}>
-            {mode === 'login' ? 'Ingresar' : 'Crear cuenta'}
+          <button className="btn btn-primary btn-block btn-lg" type="submit" disabled={busy}>
+            {busy ? 'Un momento…' : mode === 'login' ? 'Ingresar' : 'Unirme al club'}
           </button>
+          <p className="auth-switch muted small">
+            {mode === 'login' ? '¿Aún no tienes cuenta? ' : '¿Ya tienes cuenta? '}
+            <button type="button" className="link-btn" onClick={() => setMode(mode === 'login' ? 'register' : 'login')}>
+              {mode === 'login' ? 'Créala gratis' : 'Ingresa'}
+            </button>
+          </p>
         </form>
 
         <div className="demo-accounts">
           <span className="field-label">
-            Cuentas de demostración · contraseña <code className="no-caps">{DEMO_PASSWORD}</code>
+            Entrar con una cuenta de prueba · contraseña <code className="no-caps">{DEMO_PASSWORD}</code>
           </span>
           {DEMO_ACCOUNTS.map((a) => (
             <button key={a.email} className="demo-account" disabled={busy} onClick={() => attempt(() => api.login(a.email, DEMO_PASSWORD))}>
@@ -154,6 +230,7 @@ export function LoginPage() {
         </div>
       </section>
       <Toaster />
+      <DialogHost />
     </div>
   )
 }

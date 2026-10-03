@@ -1,25 +1,32 @@
-import { useEffect, useSyncExternalStore, type ReactNode } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore, type CSSProperties, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { ArrowUpRight, X, type LucideIcon } from 'lucide-react'
 import { ApiError, api } from '../data/api'
 import type { CommandInput, CommandName, CommandResult } from '../data/commands'
 import { applySnapshot } from '../data/store'
+import { formatInt } from '../lib/format'
 
 // ---------- Toasts ----------
 
-type Toast = { id: number; kind: 'success' | 'error'; message: string }
+type Toast = { id: number; kind: 'success' | 'error'; message: string; leaving?: boolean }
 let toasts: Toast[] = []
 let toastSeq = 0
 const toastListeners = new Set<() => void>()
+const TOAST_MS = 4500
+const TOAST_OUT_MS = 300
 
 export function notify(kind: Toast['kind'], message: string) {
   const toast = { id: ++toastSeq, kind, message }
   toasts = [...toasts, toast]
   toastListeners.forEach((l) => l())
   setTimeout(() => {
+    toasts = toasts.map((t) => (t.id === toast.id ? { ...t, leaving: true } : t))
+    toastListeners.forEach((l) => l())
+  }, TOAST_MS - TOAST_OUT_MS)
+  setTimeout(() => {
     toasts = toasts.filter((t) => t.id !== toast.id)
     toastListeners.forEach((l) => l())
-  }, 4500)
+  }, TOAST_MS)
 }
 
 export function Toaster() {
@@ -33,7 +40,7 @@ export function Toaster() {
   return (
     <div className="toaster" role="status" aria-live="polite">
       {list.map((t) => (
-        <div key={t.id} className={`toast toast-${t.kind}`}>
+        <div key={t.id} className={`toast toast-${t.kind} ${t.leaving ? 'is-leaving' : ''}`}>
           {t.message}
         </div>
       ))}
@@ -107,7 +114,12 @@ export function CardHead({ icon: Icon, title, action }: { icon?: LucideIcon; tit
 }
 
 export function Badge({ children, tone = 'neutral' }: { children: ReactNode; tone?: 'neutral' | 'success' | 'warning' | 'danger' | 'accent' }) {
-  return <span className={`badge badge-${tone}`}>{children}</span>
+  // Keyed by its text so a status change remounts it and replays the entrance.
+  return (
+    <span key={typeof children === 'string' ? children : undefined} className={`badge badge-${tone}`}>
+      {children}
+    </span>
+  )
 }
 
 export function Progress({ value, max }: { value: number; max: number }) {
@@ -137,12 +149,87 @@ export function ProgressRing({ value, max, size = 64 }: { value: number; max: nu
             strokeWidth={stroke}
             strokeDasharray={c}
             strokeDashoffset={c - (c * pct) / 100}
+            style={{ '--c': c } as CSSProperties}
           />
         )}
       </svg>
       <span className="ring-value">{pct}%</span>
     </div>
   )
+}
+
+export const prefersReducedMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches
+
+const ROW = '[data-row], tr, li, .list-row, .card'
+/** List row, table row or card holding `trigger`. Resolve it before awaiting if the trigger may unmount. */
+export const rowOf = (trigger: Element | null | undefined) => trigger?.closest<HTMLElement>(ROW) ?? null
+
+/**
+ * Fades out the row holding `trigger` and then runs `action`. If the row is still rendered afterwards
+ * (the command failed or kept the item), it fades back in.
+ */
+export async function vanish<T>(trigger: Element | null | undefined, action: () => T | Promise<T>): Promise<T> {
+  const el = rowOf(trigger)
+  if (!el) return action()
+  const out = el.animate(
+    prefersReducedMotion()
+      ? [{ opacity: 1 }, { opacity: 0 }]
+      : [
+          { opacity: 1, transform: 'none' },
+          { opacity: 0, transform: 'translateX(14px) scale(0.98)' },
+        ],
+    { duration: 220, easing: 'cubic-bezier(0.4, 0, 1, 1)', fill: 'forwards' },
+  )
+  await out.finished.catch(() => undefined)
+  try {
+    return await action()
+  } finally {
+    // Wait for React to commit the removal before deciding the row survived.
+    requestAnimationFrame(() =>
+      requestAnimationFrame(() => {
+        if (!el.isConnected) return
+        out.cancel()
+        el.animate([{ opacity: 0 }, { opacity: 1 }], { duration: 200, easing: 'ease-out' })
+      }),
+    )
+  }
+}
+
+/** Briefly highlights the row holding `trigger` after an in-place change (status, availability). */
+export function flash(trigger: Element | null | undefined) {
+  const el = rowOf(trigger)
+  if (!el) return
+  const style = getComputedStyle(el)
+  const accent = style.getPropertyValue('--accent-rgb').trim() || '245 200 76'
+  el.animate([{ backgroundColor: `rgb(${accent} / 0.18)` }, { backgroundColor: style.backgroundColor }], { duration: 1000, easing: 'ease-out' })
+}
+
+/** Integer that rolls from its previous value to the new one. Writes to the DOM directly to avoid a render per frame. */
+export function CountUp({ value, duration = 1100 }: { value: number; duration?: number }) {
+  const ref = useRef<HTMLSpanElement>(null)
+  const shown = useRef(0)
+  useLayoutEffect(() => {
+    const el = ref.current
+    if (!el) return
+    const from = shown.current
+    if (from === value || prefersReducedMotion()) {
+      shown.current = value
+      el.textContent = formatInt(value)
+      return
+    }
+    el.textContent = formatInt(from)
+    const start = performance.now()
+    let frame = 0
+    const tick = (now: number) => {
+      const k = Math.min(1, (now - start) / duration)
+      shown.current = Math.round(from + (value - from) * (1 - Math.pow(1 - k, 4)))
+      el.textContent = formatInt(shown.current)
+      if (k < 1) frame = requestAnimationFrame(tick)
+    }
+    frame = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(frame)
+  }, [value, duration])
+  return <span ref={ref} className="tabular" />
 }
 
 export function Stat({ label, value, hint }: { label: string; value: ReactNode; hint?: ReactNode }) {
@@ -159,28 +246,65 @@ export function Empty({ children }: { children: ReactNode }) {
   return <div className="empty">{children}</div>
 }
 
-export function Field({ label, children, hint }: { label: string; children: ReactNode; hint?: string }) {
+export function Field({ label, children, hint, error }: { label: string; children: ReactNode; hint?: string; error?: string | null }) {
   return (
     <label className="field">
       <span className="field-label">{label}</span>
       {children}
-      {hint && <span className="field-hint">{hint}</span>}
+      {error ? (
+        <span className="field-error" role="alert">
+          {error}
+        </span>
+      ) : (
+        hint && <span className="field-hint">{hint}</span>
+      )}
     </label>
   )
 }
 
-export function Modal({ title, onClose, children, wide }: { title: string; onClose: () => void; children: ReactNode; wide?: boolean }) {
+/** Current time in ms, refreshed every `intervalMs` (for countdowns). */
+export function useNow(intervalMs = 1000): number {
+  const [now, setNow] = useState(() => Date.now())
   useEffect(() => {
-    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && onClose()
+    const timer = setInterval(() => setNow(Date.now()), intervalMs)
+    return () => clearInterval(timer)
+  }, [intervalMs])
+  return now
+}
+
+export const formatCountdown = (ms: number) => {
+  const total = Math.max(0, Math.ceil(ms / 1000))
+  return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, '0')}`
+}
+
+/** Bar that empties with the time left until `end`; it moves on every `now` tick. */
+export function TimeBar({ start, end, now }: { start: number; end: number; now: number }) {
+  const ratio = Math.min(1, Math.max(0, (end - now) / Math.max(1, end - start)))
+  return (
+    <div className="timebar" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(ratio * 100)}>
+      <div className={`timebar-fill ${ratio < 0.2 ? 'is-low' : ''}`} style={{ transform: `scaleX(${ratio})` }} />
+    </div>
+  )
+}
+
+export function Modal({ title, onClose, children, wide }: { title: string; onClose: () => void; children: ReactNode; wide?: boolean }) {
+  // Closing from inside (X, Escape, backdrop) plays the exit first; the parent unmounts on animation end.
+  const [closing, setClosing] = useState(false)
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setClosing(true)
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [onClose])
+  }, [])
   return (
-    <div className="modal-backdrop" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
+    <div
+      className={`modal-backdrop ${closing ? 'is-closing' : ''}`}
+      onMouseDown={(e) => e.target === e.currentTarget && setClosing(true)}
+      onAnimationEnd={(e) => closing && e.target === e.currentTarget && onClose()}
+    >
       <div className={`modal ${wide ? 'modal-wide' : ''}`} role="dialog" aria-modal="true" aria-label={title}>
         <div className="modal-head">
           <h2>{title}</h2>
-          <button className="icon-btn" onClick={onClose} aria-label="Cerrar">
+          <button className="icon-btn" onClick={() => setClosing(true)} aria-label="Cerrar">
             <X size={20} />
           </button>
         </div>

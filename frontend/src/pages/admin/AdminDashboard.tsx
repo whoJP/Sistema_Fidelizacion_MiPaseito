@@ -61,11 +61,12 @@ export function AdminDashboard() {
       <div className="stats-row">
         <Stat label="Ventas registradas" value={formatMoney(recent.reduce((s, t) => s + t.amount, 0))} hint={plural(recent.length, 'compra', 'compras')} />
         <Stat label="Clientes activos" value={activeCustomers} hint={`de ${customers.length} registrados`} />
-        <Stat label="Puntos entregados (histórico)" value={formatInt(issued)} hint={`${formatInt(redeemed)} canjeados`} />
+        <Stat label="Puntos entregados" value={formatInt(issued)} hint={`histórico, ${formatInt(redeemed)} canjeados`} />
         <Stat label="Puntos sin usar" value={formatInt(outstanding)} hint="saldo total de los clientes" />
         <Stat
-          label="Alertas de fraude abiertas"
+          label="Alertas de fraude"
           value={<Link to="/admin/fraud">{openAlerts}</Link>}
+          hint={openAlerts === 1 ? 'abierta, por revisar' : 'abiertas, por revisar'}
         />
       </div>
 
@@ -126,7 +127,7 @@ export function AdminDashboard() {
                 <li key={tier.id} className="mission-mini">
                   <div className="row between">
                     <span className={`tier-chip tier-${tier.name.toLowerCase()}`}>{tier.name}</span>
-                    <span className="small muted">{count} clientes</span>
+                    <span className="small muted">{plural(count, 'cliente', 'clientes')}</span>
                   </div>
                   <Progress value={count} max={Math.max(1, customers.length)} />
                 </li>

@@ -89,13 +89,13 @@ export function AdminHeader({ title, subtitle, onCreate, createLabel = 'Nuevo' }
   )
 }
 
-export function FormActions({ onCancel }: { onCancel: () => void }) {
+export function FormActions({ onCancel, disabled = false }: { onCancel: () => void; disabled?: boolean }) {
   return (
-    <div className="row end gap">
+    <div className="row end gap form-actions">
       <button type="button" className="btn btn-ghost" onClick={onCancel}>
         Cancelar
       </button>
-      <button className="btn btn-primary" type="submit">
+      <button className="btn btn-primary" type="submit" disabled={disabled}>
         Guardar
       </button>
     </div>

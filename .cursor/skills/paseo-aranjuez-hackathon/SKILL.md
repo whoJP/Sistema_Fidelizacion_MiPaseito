@@ -56,7 +56,7 @@ Prefer polishing the core flow over adding half-working extras.
 1. El cliente crea su cuenta.
 2. Recibe un código QR personal.
 3. Realiza una compra en un establecimiento.
-4. El establecimiento escanea su QR (o pega el código / email).
+4. El establecimiento escanea su QR con la cámara (o escribe el código de 6 dígitos que se ve debajo del QR).
 5. Se registra la compra.
 6. Los puntos aparecen automáticamente en la cuenta (sin recargar).
 7. El cliente revisa los premios disponibles.
@@ -64,9 +64,11 @@ Prefer polishing the core flow over adding half-working extras.
 9. El comercio valida el canje.
 10. El sistema registra toda la operación (movimientos, auditoría, dashboard admin).
 
-Demo accounts: `ana@demo.paseo` (cliente, nivel Plata), `luis@demo.paseo` (cliente + manager Mocca Café, staff
-Farmacorp), `sofia@demo.paseo` (staff multi-tienda, manager Gap), `marco@demo.paseo` (compra duplicada → alerta de
-fraude), `admin@demo.paseo` (admin); password `demo1234`. Reset with "Restablecer datos de demo".
+Three account types (`User.role`): CUSTOMER, MERCHANT (store staff, one business each, Encargado or Personal) and
+ADMIN. Demo accounts: `ana@demo.paseo` (cliente, nivel Plata), `camila@demo.paseo` (cliente), `marco@demo.paseo`
+(cliente, compra duplicada → alerta de fraude), `luis@demo.paseo` (encargado Mocca Café), `sofia@demo.paseo`
+(encargada Gap), `carla@demo.paseo` (personal Farmacorp), `admin@demo.paseo` (admin); every other store has its own
+manager account (`<nombre>@demo.paseo`, see `fixtures.ts`). Password `demo1234`. Reset with "Restablecer datos de demo".
 
 ## The real Paseo Aranjuez (public sources, Oct 2026)
 

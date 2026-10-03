@@ -5,8 +5,9 @@ Normalizado hasta 3FN: cada tabla describe una sola entidad o relación, no se g
 y los datos relacionados se obtienen mediante FK y JOIN.
 
 - IDs: `Int @id @default(autoincrement())` en todas las entidades. Las tablas puente usan clave primaria compuesta.
-- Dinero: `DECIMAL(10,2)` en Bs (`Transaction.amount`, `CatalogItem.price`, `Promotion.value`,
-  `Reward.discountAmount`, `Reward.minimumPurchase`). Nunca `FLOAT`.
+- Dinero: `DECIMAL(10,2)` en Bs (`Transaction.amount`, `TransactionItem.unitPrice`, `CatalogItem.price`,
+  `Promotion.value`, `Reward.discountAmount`, `Reward.minimumPurchase`). Nunca `FLOAT`. `CatalogItem.price` es
+  obligatorio (`NOT NULL`) porque las compras se registran eligiendo productos del catálogo.
 - Puntos (`PointMovement`) y puntos de nivel (`StatusMovement`): enteros (`INT`), positivos o negativos en sus
   libros de movimientos (ledgers).
 
@@ -20,7 +21,7 @@ Vocabulario: en código y base de datos se mantienen los nombres en inglés (`Po
 | 1 | User | id | — | email UNIQUE |
 | 2 | Business | id | — | — |
 | 3 | BusinessSchedule | id | businessId → Business | (businessId, dayOfWeek) UNIQUE |
-| 4 | BusinessMember | id | userId → User, businessId → Business | (userId, businessId) UNIQUE |
+| 4 | BusinessMember | id | userId → User, businessId → Business | userId UNIQUE, businessId |
 | 5 | Category | id | parentId → Category | parentId |
 | 6 | BusinessCategory | (businessId, categoryId) | businessId → Business, categoryId → Category | categoryId |
 | 7 | CatalogItem | id | businessId → Business | businessId |
@@ -44,13 +45,18 @@ Vocabulario: en código y base de datos se mantienen los nombres en inglés (`Po
 | 25 | FraudAlert | id | transactionId? → Transaction, redemptionId? → Redemption | status |
 | 26 | AuditLog | id | userId → User | userId |
 | 27 | SystemSetting | key | — | — |
+| 28 | TransactionItem | id | transactionId → Transaction, catalogItemId → CatalogItem | transactionId, catalogItemId |
+| 29 | CancellationRequest | id | transactionId → Transaction, requestedById → User, reviewedById? → User | transactionId UNIQUE, status |
+| 30 | Notification | id | userId → User | userId |
 
 Además de los índices listados, MySQL exige un índice en cada columna FK; Prisma los declara explícitamente.
 
 ## Relaciones y cardinalidades
 
-- **User 1:N BusinessMember N:1 Business** — N:M con atributos (`role`, `status`). Un usuario puede ser cliente,
-  MANAGER de un negocio y STAFF de otro. `User.role` solo distingue CUSTOMER / ADMIN.
+- **`User.role`** distingue los tres tipos de cuenta del reto: CUSTOMER (cliente), MERCHANT (personal de un
+  establecimiento) y ADMIN (administración del Paseo). El personal usa una cuenta propia, distinta a la de cliente.
+- **User 1:0..1 BusinessMember N:1 Business** — solo cuentas MERCHANT; cada una trabaja en un único establecimiento
+  (`userId` UNIQUE) con `role` MANAGER (encargado) o STAFF (personal) y `status`.
 - **Business 1:N BusinessSchedule** — máximo una fila por día (`businessId + dayOfWeek`).
 - **Business N:M Category** vía `BusinessCategory`.
 - **Category 1:N Category** (auto-relación `parentId`) — jerarquía categoría / subcategoría.
@@ -75,6 +81,15 @@ Además de los índices listados, MySQL exige un índice en cada columna FK; Pri
 - **Promotion N:M Business / Category** (`PromotionBusiness`, `PromotionCategory`).
 - **Transaction 1:N FraudAlert**, **Redemption 1:N FraudAlert**.
 - **User 1:N AuditLog**; **User 1:N Reward / Mission / Promotion / Event / Badge** (`createdById`).
+- **Transaction 1:N TransactionItem N:1 CatalogItem** — las líneas de la compra (producto, `quantity`, `unitPrice`
+  copiado del catálogo al registrar). `Transaction.amount` es la suma de las líneas y se guarda por ser el valor
+  histórico real, igual que `unitPrice` no depende del precio actual del producto.
+- **Transaction 1:0..1 CancellationRequest** — solo el encargado pide anular una compra que ya no puede deshacer
+  (el registro se puede deshacer durante 2 minutos). La administración la aprueba (la compra pasa a `CANCELLED` y el
+  cliente recibe una `Notification` con el motivo) o la rechaza (el encargado ve `reviewNote`). Una solicitud por
+  compra (`transactionId` UNIQUE).
+- **User 1:N Notification** — avisos al cliente (p. ej. puntos descontados por una anulación); `readAt` marca
+  cuándo los descartó.
 
 Una misión o promoción sin filas en sus tablas `*Business` / `*Category` se considera global.
 
@@ -117,6 +132,9 @@ La recompensa se entrega automáticamente al completarla (por eso no existe `rew
 `TOTAL_PURCHASE_AMOUNT`, `goal` y `progress` se expresan en Bs enteros. Si se anula una compra y el objetivo deja de
 cumplirse, la misión vuelve a quedar pendiente y su premio se descuenta con movimientos `REVERSAL` / `ADJUSTMENT`.
 
+Un `Redemption` `PENDING` vence a los `REDEMPTION_EXPIRATION_MINUTES` (`SystemSetting`, 15 por defecto) desde
+`createdAt`: el servidor revisa cada 15 s, lo pasa a `EXPIRED` y devuelve los puntos con un movimiento `REVERSAL`.
+
 `Badge.date` (insignias `SPECIAL_DATE`) es un día calendario de Bolivia (UTC−4): vale de 00:00 a 23:59 de ese día y
 se gana con una compra completada o un ingreso a evento en esa fecha.
 
@@ -126,25 +144,27 @@ se gana con una compra completada o un ingreso a evento en esa fecha.
 `Reward`, `Mission`, `Promotion`, `Event`, `Badge`. Las consultas de la aplicación deben filtrar `deletedAt IS NULL`.
 `status` (ACTIVE / INACTIVE…) es independiente: permite ocultar temporalmente sin eliminar.
 
-**Historial inmutable, sin soft delete ni borrado físico**: `Transaction`, `PointMovement`, `StatusMovement`,
-`Redemption`, `EventAttendance`, `FraudAlert`, `AuditLog`. Las correcciones se hacen con movimientos nuevos (`REVERSAL`,
+**Historial inmutable, sin soft delete ni borrado físico**: `Transaction`, `TransactionItem`, `PointMovement`,
+`StatusMovement`, `Redemption`, `EventAttendance`, `FraudAlert`, `CancellationRequest`, `AuditLog`. Las correcciones se hacen con movimientos nuevos (`REVERSAL`,
 `ADJUSTMENT`) o cambiando `status` (`CANCELLED`, `FLAGGED`), nunca editando ni borrando filas.
 
 **Reglas `ON DELETE`**:
 
-- `RESTRICT` en toda FK desde historial (Transaction, ledgers, Redemption, EventAttendance, FraudAlert, AuditLog) y en
+- `RESTRICT` en toda FK desde historial (Transaction, TransactionItem, ledgers, Redemption, EventAttendance,
+  FraudAlert, CancellationRequest, AuditLog) y en
   `createdById`, `CatalogItem.businessId`, `Reward.businessId`, `Reward.catalogItemId`, `Reward.minimumTierId`,
   `Badge.tierId`, `Badge.categoryId`, `Category.parentId`. Un `DELETE` físico de User o Business con historial falla
   en lugar de destruirlo.
 - `CASCADE` solo en tablas puente y estado dependiente: `BusinessCategory`, `Mission/PromotionBusiness`,
-  `Mission/PromotionCategory`, `BusinessSchedule`, `BusinessMember`, `MissionProgress`, `BusinessDiscovery`.
+  `Mission/PromotionCategory`, `BusinessSchedule`, `BusinessMember`, `MissionProgress`, `BusinessDiscovery`,
+  `Notification`.
 
 ## Tablas excluidas a propósito
 
 `LoyaltyAccount`, `UserPoints`, `UserTier` (balances / tier derivables), `UserBadge` (derivable del historial),
 `Referral` (fuera de alcance por ahora), `PassportCategoryDiscovery`
 (derivable de `BusinessDiscovery`), `Streak` (derivable de `Transaction`), `Recommendation`, `Analytics`,
-`Dashboard` (se calculan), `QRSession` (token firmado), `Notification`, `Tag`, `BusinessTag` (fuera del MVP).
+`Dashboard` (se calculan), `QRSession` (token firmado), `Tag`, `BusinessTag` (fuera del MVP).
 
 ## Diagrama ER
 
@@ -213,6 +233,13 @@ erDiagram
     Redemption |o--o{ FraudAlert : ""
     User ||--o{ AuditLog : ""
 
+    Transaction ||--o{ TransactionItem : "líneas"
+    CatalogItem ||--o{ TransactionItem : ""
+    Transaction ||--o| CancellationRequest : ""
+    User ||--o{ CancellationRequest : "requestedById"
+    User |o--o{ CancellationRequest : "reviewedById"
+    User ||--o{ Notification : ""
+
     User {
         int id PK
         string email UK
@@ -267,6 +294,7 @@ erDiagram
         int id PK
         int businessId FK
         string name
+        text description
         decimal price
         bool isAvailable
         datetime deletedAt
@@ -443,5 +471,31 @@ erDiagram
         string key PK
         string value
         datetime updatedAt
+    }
+    TransactionItem {
+        int id PK
+        int transactionId FK
+        int catalogItemId FK
+        int quantity
+        decimal unitPrice
+    }
+    CancellationRequest {
+        int id PK
+        int transactionId FK, UK
+        int requestedById FK
+        text reason
+        enum status
+        int reviewedById FK
+        text reviewNote
+        datetime createdAt
+        datetime reviewedAt
+    }
+    Notification {
+        int id PK
+        int userId FK
+        string title
+        text message
+        datetime createdAt
+        datetime readAt
     }
 ```

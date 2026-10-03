@@ -1,182 +1,295 @@
-import { useState, type FormEvent } from 'react'
-import { CheckCircle2, AlertTriangle, UserRound } from 'lucide-react'
+import { useRef, useState, type FormEvent } from 'react'
+import { Link } from 'react-router-dom'
+import { AlertTriangle, CheckCircle2, Minus, Plus, Search, Trash2, Undo2, UserRound, X } from 'lucide-react'
 import { ApiError, api, type IdentifiedCustomer } from '../../data/api'
 import { useDb } from '../../data/store'
-import type { PurchaseResult } from '../../data/actions'
-import { currentTier, quotePurchase } from '../../domain/loyalty'
-import { formatInt, formatMoney, fullName } from '../../lib/format'
-import { Badge, Card, Field, PageHeader, notify, run } from '../../components/ui'
+import { purchaseLines } from '../../domain/loyalty'
+import { formatDateTime, formatInt, formatMoney, fullName, normalizeText, plural } from '../../lib/format'
+import { useUser } from '../../session'
+import type { CatalogItem } from '../../types/domain'
+import { Badge, Card, Empty, PageHeader, notify, prefersReducedMotion, run, vanish } from '../../components/ui'
+import { ScanOrCode } from '../../components/ScanOrCode'
+import { UndoPurchase } from '../../components/UndoPurchase'
 import { useWorkplace } from './useWorkplace'
+
+type Line = { item: CatalogItem; quantity: number }
 
 export function RegisterPurchasePage() {
   const db = useDb()
-  const { business } = useWorkplace()
-  const [code, setCode] = useState('')
+  const me = useUser()
+  const { business, membership } = useWorkplace()
+  const productsRef = useRef<HTMLDivElement>(null)
   const [customer, setCustomer] = useState<IdentifiedCustomer | null>(null)
-  const [amount, setAmount] = useState('')
-  const [result, setResult] = useState<PurchaseResult | null>(null)
+  const [query, setQuery] = useState('')
+  const [lines, setLines] = useState<Line[]>([])
+  const [lastId, setLastId] = useState<number | null>(null)
   const [busy, setBusy] = useState(false)
 
-  const identify = async (e: FormEvent) => {
-    e.preventDefault()
+  const catalog = db.catalogItems
+    .filter((i) => i.businessId === business.id && i.deletedAt === null && i.isAvailable)
+    .sort((a, b) => a.name.localeCompare(b.name, 'es'))
+  const q = normalizeText(query.trim())
+  const matches = q ? catalog.filter((i) => normalizeText(i.name).includes(q) || normalizeText(i.description ?? '').includes(q)) : catalog
+  const quantityOf = (itemId: number) => lines.find((l) => l.item.id === itemId)?.quantity ?? 0
+  const total = Math.round(lines.reduce((s, l) => s + l.item.price * l.quantity, 0) * 100) / 100
+  const units = lines.reduce((s, l) => s + l.quantity, 0)
+  const last = lastId ? db.transactions.find((t) => t.id === lastId) : undefined
+  const recent = db.transactions
+    .filter((t) => t.businessId === business.id && t.performedById === me.id && t.id !== last?.id)
+    .sort((a, b) => b.id - a.id)
+    .slice(0, 5)
+
+  const identify = async (value: string) => {
+    if (!value.trim() || busy) return false
     setBusy(true)
     try {
-      setCustomer(await api.identifyCustomer(code.trim()))
-      setResult(null)
+      const found = await api.identifyCustomer(value.trim())
+      setCustomer(found)
+      notify('success', `Cliente identificado: ${fullName(found)}`)
+      if (lines.length === 0) productsRef.current?.scrollIntoView({ behavior: prefersReducedMotion() ? 'auto' : 'smooth', block: 'start' })
+      return true
     } catch (err) {
       notify('error', err instanceof ApiError ? err.message : 'Error inesperado')
+      return false
     } finally {
       setBusy(false)
     }
   }
 
-  const numericAmount = Number(amount.replace(',', '.'))
-  const quote = customer && numericAmount > 0 ? quotePurchase(db, customer.id, business.id, numericAmount) : null
-  const tier = customer ? currentTier(db, customer.id) : null
+  const add = (item: CatalogItem) =>
+    setLines((current) =>
+      current.some((l) => l.item.id === item.id)
+        ? current.map((l) => (l.item.id === item.id ? { ...l, quantity: Math.min(999, l.quantity + 1) } : l))
+        : [...current, { item, quantity: 1 }],
+    )
+  const setQuantity = (itemId: number, quantity: number) =>
+    setLines((current) => current.map((l) => (l.item.id === itemId ? { ...l, quantity: Math.max(1, Math.min(999, quantity || 1)) } : l)))
+  const remove = (itemId: number) => setLines((current) => current.filter((l) => l.item.id !== itemId))
 
   const submit = async (e: FormEvent) => {
     e.preventDefault()
-    if (!customer) return
+    if (!customer || lines.length === 0) return
     setBusy(true)
-    const r = await run('registerPurchase', { customerId: customer.id, businessId: business.id, amount: numericAmount })
+    const r = await run('registerPurchase', {
+      customerId: customer.id,
+      businessId: business.id,
+      items: lines.map((l) => ({ catalogItemId: l.item.id, quantity: l.quantity })),
+    })
     setBusy(false)
-    if (r) {
-      setResult(r)
-      notify(r.flagged ? 'error' : 'success', r.flagged ? 'Compra registrada, enviada a revisión' : 'Compra registrada')
-      setAmount('')
-    }
+    if (!r) return
+    notify(r.flagged ? 'error' : 'success', r.flagged ? 'Compra registrada y enviada a revisión' : 'Compra registrada')
+    setLastId(r.transaction.id)
+    setLines([])
+    setQuery('')
+    setCustomer(null)
+    window.scrollTo({ top: 0, behavior: prefersReducedMotion() ? 'auto' : 'smooth' })
   }
 
-  const reset = () => {
-    setCustomer(null)
-    setCode('')
-    setAmount('')
-    setResult(null)
-  }
+  const lastCustomer = last && db.users.find((u) => u.id === last.customerId)
+  const submitLabel = !customer
+    ? 'Identifica al cliente para registrar'
+    : lines.length === 0
+      ? 'Agrega productos para registrar'
+      : 'Registrar compra'
 
   return (
     <div className="page">
-      <PageHeader title="Registrar compra" subtitle={business.name} />
+      <PageHeader title="Registrar compra" subtitle={`${business.name} · Identifica al cliente, elige los productos y registra. Los puntos le llegan al instante.`} />
 
       <div className="detail-grid">
         <div className="stack">
           <Card>
             <h2 className="card-title">
-              <span className="step-num">1</span> Identificar cliente
+              <span className={`step-num ${customer ? 'is-done' : ''}`}>{customer ? <CheckCircle2 size={16} aria-hidden /> : 1}</span> Cliente
             </h2>
             {customer ? (
-              <div className="list-row">
-                <div className="row gap">
-                  <span className="avatar">
-                    <UserRound size={18} />
-                  </span>
-                  <div>
-                    <strong>{fullName(customer)}</strong>
-                    <div className="muted small">{customer.email}</div>
-                  </div>
+              <div className="identified">
+                <span className="avatar">
+                  <UserRound size={18} aria-hidden />
+                </span>
+                <div className="identified-name">
+                  <strong>{fullName(customer)}</strong>
+                  <span className="muted small">{customer.email}</span>
                 </div>
-                <div className="row gap">
-                  {tier && <span className={`tier-chip tier-${tier.name.toLowerCase()}`}>{tier.name}</span>}
-                  <button className="btn btn-ghost btn-sm" onClick={reset}>
-                    Cambiar
-                  </button>
-                </div>
+                <button type="button" className="btn btn-ghost btn-sm" onClick={() => setCustomer(null)}>
+                  Cambiar
+                </button>
               </div>
             ) : (
-              <form className="stack" onSubmit={identify}>
-                <Field label="Código del cliente o correo" hint="Escanea o pega el código QR que muestra la app del cliente (PP1…), o escribe su correo.">
-                  <input value={code} onChange={(e) => setCode(e.target.value)} placeholder="PP1.… o cliente@correo.com" autoFocus />
-                </Field>
-                <button className="btn btn-primary" type="submit" disabled={!code.trim() || busy}>
-                  Buscar cliente
-                </button>
-              </form>
+              <ScanOrCode kind="customer" onSubmit={identify} busy={busy} scanLabel="Pide al cliente su QR de Paseo Club y apúntale con la cámara" />
             )}
           </Card>
 
-          <Card className={customer ? '' : 'disabled'}>
-            <h2 className="card-title">
-              <span className="step-num">2</span> Monto de la compra
-            </h2>
-            <form className="stack" onSubmit={submit}>
-              <Field label="Monto (Bs)">
-                <input
-                  inputMode="decimal"
-                  value={amount}
-                  onChange={(e) => setAmount(e.target.value)}
-                  placeholder="0.00"
-                  disabled={!customer}
-                />
-              </Field>
-              <button className="btn btn-primary" type="submit" disabled={!customer || !(numericAmount > 0) || busy}>
-                Registrar {numericAmount > 0 ? formatMoney(numericAmount) : ''}
-              </button>
-            </form>
+          <Card>
+            <div ref={productsRef} className="scroll-target">
+              <div className="card-head">
+                <h2 className="card-title">
+                  <span className="step-num">2</span> Productos
+                </h2>
+                {catalog.length > 0 && <span className="muted small">{plural(catalog.length, 'disponible', 'disponibles')}</span>}
+              </div>
+              {catalog.length === 0 ? (
+                <Empty>
+                  {membership.role === 'MANAGER' ? (
+                    <>
+                      Agrega productos con precio en tu <Link to={`/merchant/${business.id}/catalog`}>catálogo</Link> para registrar compras.
+                    </>
+                  ) : (
+                    'Tu establecimiento aún no tiene productos disponibles. Pide al encargado que los agregue al catálogo.'
+                  )}
+                </Empty>
+              ) : (
+                <form className="stack" onSubmit={submit}>
+                  <div className="picker">
+                    <label className="search">
+                      <Search size={16} aria-hidden />
+                      <input type="search" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Buscar producto por nombre" aria-label="Buscar producto" />
+                      {query && (
+                        <button type="button" className="search-clear" onClick={() => setQuery('')} aria-label="Borrar búsqueda">
+                          <X size={15} />
+                        </button>
+                      )}
+                    </label>
+                    <ul className="pick-list" aria-label="Productos del catálogo">
+                      {matches.map((item) => {
+                        const qty = quantityOf(item.id)
+                        return (
+                          <li key={item.id}>
+                            <button type="button" className={`pick-row ${qty ? 'is-picked' : ''}`} onClick={() => add(item)} aria-label={`Agregar ${item.name}, ${formatMoney(item.price)}`}>
+                              <span className="pick-name">
+                                <strong>{item.name}</strong>
+                                {item.description && <span className="muted small clamp-1">{item.description}</span>}
+                              </span>
+                              <span className="pick-price tabular">{formatMoney(item.price)}</span>
+                              <span className="pick-add" aria-hidden>
+                                {qty ? <b className="tabular">{qty}</b> : <Plus size={16} />}
+                              </span>
+                            </button>
+                          </li>
+                        )
+                      })}
+                      {matches.length === 0 && <li className="pick-empty muted small">Ningún producto coincide con «{query}».</li>}
+                    </ul>
+                  </div>
+
+                  {lines.length > 0 && (
+                    <div className="stack-sm">
+                      <div className="row between">
+                        <h3 className="small-title">Productos de esta compra</h3>
+                        <button type="button" className="btn btn-ghost btn-sm danger" onClick={() => setLines([])}>
+                          <Trash2 size={14} aria-hidden /> Vaciar
+                        </button>
+                      </div>
+                      <ul className="cart" aria-label="Productos de la compra">
+                        {lines.map(({ item, quantity }) => (
+                          <li key={item.id} className="cart-row">
+                            <div className="cart-name">
+                              <strong>{item.name}</strong>
+                              <span className="muted small tabular">
+                                {formatMoney(item.price)} c/u · <b className="tabular">{formatMoney(item.price * quantity)}</b>
+                              </span>
+                            </div>
+                            <div className="qty">
+                              <button
+                                type="button"
+                                className="icon-btn"
+                                aria-label={quantity <= 1 ? `Quitar ${item.name}` : `Quitar una unidad de ${item.name}`}
+                                onClick={(e) => (quantity <= 1 ? void vanish(e.currentTarget, () => remove(item.id)) : setQuantity(item.id, quantity - 1))}
+                              >
+                                {quantity <= 1 ? <Trash2 size={15} /> : <Minus size={15} />}
+                              </button>
+                              <input
+                                type="number"
+                                inputMode="numeric"
+                                min={1}
+                                max={999}
+                                value={quantity}
+                                onChange={(e) => setQuantity(item.id, Number(e.target.value))}
+                                aria-label={`Cantidad de ${item.name}`}
+                              />
+                              <button type="button" className="icon-btn" aria-label={`Agregar una unidad de ${item.name}`} onClick={() => setQuantity(item.id, quantity + 1)}>
+                                <Plus size={15} />
+                              </button>
+                            </div>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+
+                  <div className="checkout-bar">
+                    <div className="checkout-total">
+                      <span className="muted small">{lines.length === 0 ? 'Sin productos' : plural(units, 'producto', 'productos')}</span>
+                      <strong className="tabular">{formatMoney(total)}</strong>
+                    </div>
+                    <button className="btn btn-primary" type="submit" disabled={!customer || lines.length === 0 || busy}>
+                      {busy && customer ? 'Registrando…' : submitLabel}
+                    </button>
+                  </div>
+                </form>
+              )}
+            </div>
           </Card>
         </div>
 
         <div className="stack">
-          {quote && (
-            <Card>
-              <h2>Vista previa</h2>
-              <ul className="list">
-                <li className="list-row">
-                  <span>Puntos base{quote.tierMultiplier !== 1 ? ` (×${quote.tierMultiplier} por nivel)` : ''}</span>
-                  <strong>{formatInt(quote.basePoints)}</strong>
-                </li>
-                {quote.promotionBonuses.map((b) => (
-                  <li key={b.promotion.id} className="list-row">
-                    <span>{b.promotion.name}</span>
-                    <strong className="accent">+{formatInt(b.points)}</strong>
+          {last && lastCustomer && (
+            <Card className={last.status === 'CANCELLED' ? '' : last.status === 'FLAGGED' ? 'card-warning' : 'card-success'}>
+              <h2 className="row gap">
+                {last.status === 'CANCELLED' ? <Undo2 size={20} /> : last.status === 'FLAGGED' ? <AlertTriangle size={20} /> : <CheckCircle2 size={20} />}
+                {last.status === 'CANCELLED' ? 'Registro deshecho' : last.status === 'FLAGGED' ? 'Registrada, en revisión' : 'Compra registrada'}
+              </h2>
+              <p>
+                <b>{fullName(lastCustomer)}</b> · {formatMoney(last.amount)} · {formatDateTime(last.createdAt)}
+              </p>
+              <ul className="receipt">
+                {purchaseLines(db, last.id).map((l) => (
+                  <li key={l.id}>
+                    <span>
+                      {formatInt(l.quantity)} × {l.name}
+                    </span>
+                    <span className="tabular">{formatMoney(l.unitPrice * l.quantity)}</span>
                   </li>
                 ))}
-                <li className="list-row">
-                  <span>Puntos de nivel</span>
-                  <strong>+{formatInt(quote.statusPoints)}</strong>
-                </li>
-                <li className="list-row total">
-                  <span>Total de puntos</span>
-                  <strong>{formatInt(quote.totalPoints)}</strong>
-                </li>
               </ul>
-              <p className="muted small">Bonos de descubrimiento, racha y misiones se calculan al registrar.</p>
+              {last.status === 'FLAGGED' && <p className="small">La administración del Paseo revisará esta compra.</p>}
+              {last.status === 'CANCELLED' && <p className="muted small">La compra quedó anulada y el cliente no recibió puntos por ella.</p>}
+              <UndoPurchase
+                tx={last}
+                after={<p className="muted small">Si hubo un error, el encargado puede solicitar la anulación en Movimientos.</p>}
+              />
             </Card>
           )}
 
-          {result && (
-            <Card className={result.flagged ? 'card-warning' : 'card-success'}>
-              {result.flagged ? (
-                <>
-                  <h2 className="row gap">
-                    <AlertTriangle size={20} /> Enviada a revisión
-                  </h2>
-                  <p>La compra se registró pero quedó marcada por el sistema antifraude. Los puntos se acreditarán si la administración la aprueba.</p>
-                </>
-              ) : (
-                <>
-                  <h2 className="row gap">
-                    <CheckCircle2 size={20} /> Compra registrada
-                  </h2>
-                  <p>
-                    {customer?.firstName} ganó <b>{formatInt(result.pointsEarned)} puntos</b> y <b>{formatInt(result.statusEarned)} puntos de nivel</b>.
-                  </p>
-                  <div className="row gap wrap">
-                    {result.discovered && <Badge tone="success">Nuevo sello en su Pasaporte</Badge>}
-                    {result.completedMissions.map((m) => (
-                      <Badge key={m.id} tone="accent">
-                        Misión completada: {m.name}
-                      </Badge>
-                    ))}
-                    {result.newBadges.map((name) => (
-                      <Badge key={name} tone="success">
-                        Nueva insignia: {name}
-                      </Badge>
-                    ))}
-                  </div>
-                </>
-              )}
-            </Card>
-          )}
+          <Card>
+            <h2>Tus últimos registros</h2>
+            {recent.length === 0 ? (
+              <Empty>Aquí verás las compras que registres.</Empty>
+            ) : (
+              <ul className="list">
+                {recent.map((t) => {
+                  const c = db.users.find((u) => u.id === t.customerId)
+                  return (
+                    <li key={t.id} className="list-row">
+                      <div>
+                        <strong>{c && fullName(c)}</strong>
+                        <div className="muted small">
+                          {formatDateTime(t.createdAt)} · {formatMoney(t.amount)}
+                        </div>
+                      </div>
+                      {t.status === 'CANCELLED' ? (
+                        <Badge tone="danger">Anulada</Badge>
+                      ) : t.status === 'FLAGGED' ? (
+                        <Badge tone="warning">En revisión</Badge>
+                      ) : (
+                        <UndoPurchase tx={t} />
+                      )}
+                    </li>
+                  )
+                })}
+              </ul>
+            )}
+          </Card>
         </div>
       </div>
     </div>

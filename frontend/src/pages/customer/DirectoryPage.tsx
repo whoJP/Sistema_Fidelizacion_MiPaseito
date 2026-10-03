@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { MapPin, Search, Sparkles, Stamp } from 'lucide-react'
+import { MapPin, Megaphone, Search, Stamp } from 'lucide-react'
 import { useDb } from '../../data/store'
 import {
   businessCategoryClosure,
@@ -15,7 +15,7 @@ import { floorLabel } from '../../lib/format'
 import type { Business } from '../../types/domain'
 
 export function businessLocation(b: Business) {
-  return [b.floor && floorLabel(b.floor), b.sector, b.localNumber && `Local ${b.localNumber}`].filter(Boolean).join(' · ')
+  return [b.floor && floorLabel(b.floor), b.sector, b.localNumber && `Local ${b.localNumber}`].filter(Boolean).join(', ')
 }
 
 export function DirectoryPage() {
@@ -90,7 +90,7 @@ export function DirectoryPage() {
                   ))}
                   {promos.length > 0 && (
                     <Badge tone="accent">
-                      <Sparkles size={12} /> Promoción
+                      <Megaphone size={12} aria-hidden /> Promoción
                     </Badge>
                   )}
                 </div>

@@ -41,8 +41,9 @@ Una aplicación web (pensada para el celular del cliente) con tres vistas según
 5. Se registra la compra con los productos del catálogo del local.
 6. Los puntos **aparecen automáticamente** en la cuenta del cliente, sin recargar la página.
 7. El cliente revisa los premios disponibles.
-8. Selecciona una recompensa y recibe un **token de canje** que vence en 15 minutos.
-9. El comercio **valida el canje** escaneando ese token.
+8. Selecciona una recompensa: el canje queda **activo en su tarjeta** por 7 días.
+9. En el local escanean **el mismo QR de la tarjeta**: la caja ve el canje y lo aplica con la compra (o lo cancela con
+   un motivo y le devuelve los puntos).
 10. El sistema registra toda la operación: movimientos de puntos, canje, auditoría y métricas del administrador.
 
 ## Cumplimiento del reto
@@ -56,7 +57,7 @@ Una aplicación web (pensada para el celular del cliente) con tres vistas según
 | Sistema de puntos | `registerPurchase()` en `data/actions.ts` · `quotePurchase()` en `domain/loyalty.ts` |
 | Registro de transacciones | Tablas `Transaction` y `TransactionItem` |
 | Historial de puntos | `pages/customer/ActivityPage.tsx` (tablas `PointMovement` y `StatusMovement`) |
-| Catálogo de beneficios y canje | `pages/customer/RewardsPage.tsx` · `createRedemption()` / `validateRedemption()` |
+| Catálogo de beneficios y canje | `pages/customer/RewardsPage.tsx` · `createRedemption()` · canje en caja con `registerPurchase()` (`domain/checkout.ts`) / `rejectRedemption()` |
 | Panel para establecimientos | `pages/merchant/*` (rutas `/merchant/:id`) |
 | Panel administrativo | `pages/admin/*` (rutas `/admin`) |
 | Identificación del cliente | QR personal firmado + código de 6 dígitos · `POST /api/customers/identify` |
@@ -68,13 +69,15 @@ Una aplicación web (pensada para el celular del cliente) con tres vistas según
 - **Misiones y retos** con fecha de inicio y fin (ruta gastronómica, explorador, constancia semanal, etc.).
 - **Pasaporte del Paseo**: bono por comprar por primera vez en cada local.
 - **Puntos dobles en fechas especiales**: promociones con multiplicador por fechas, local o categoría.
-- **Puntos y regalos de cumpleaños**, con verificación de la fecha de nacimiento.
+- **Puntos y beneficios de cumpleaños**, con verificación de la fecha de nacimiento. Cada local configura regalos
+  (con compra mínima o al comprar un producto) y descuentos (en un producto, una categoría o toda la compra) que la
+  caja aplica sola al escanear la tarjeta, una vez al año.
 - **Ranking de clientes**: top 10 por puntos de nivel ganados en los últimos 30 días, más la posición propia
   (canjear no baja de puesto). En el panel del administrador, **clientes frecuentes** y **establecimientos con
   mayor actividad**.
 - **Logros e insignias**, **ruleta**, **tarjeta de visitas** y **rachas semanales** (gamificación).
 - **Check-in en espacios del Paseo** (galería, miradores) con QR fijo.
-- **Cupones digitales** (token de canje y cupones personales de un solo uso).
+- **Cupones digitales** (canjes activos en la tarjeta y cupones personales de un solo uso).
 - **Notificaciones** dentro de la aplicación.
 - **Promociones personalizadas automáticas**: el sistema detecta clientes que dejaron de venir y les crea una
   promoción en la categoría que más consumen; también por aniversario de la cuenta.

@@ -28,7 +28,7 @@ export const TABLES: TableMeta[] = [
   { key: 'cancellationRequests', model: 'cancellationRequest', primaryKey: ['id'], dateTimes: ['createdAt', 'reviewedAt'] },
   { key: 'notifications', model: 'notification', primaryKey: ['id'], dateTimes: ['createdAt', 'readAt'] },
   { key: 'rewards', model: 'reward', primaryKey: ['id'], dateTimes: ['startsAt', 'endsAt', 'deletedAt'] },
-  { key: 'redemptions', model: 'redemption', primaryKey: ['id'], dateTimes: ['createdAt', 'redeemedAt', 'expiresAt'] },
+  { key: 'redemptions', model: 'redemption', primaryKey: ['id'], dateTimes: ['createdAt', 'redeemedAt', 'expiresAt', 'cancelledAt'] },
   { key: 'missions', model: 'mission', primaryKey: ['id'], dateTimes: ['startsAt', 'endsAt', 'deletedAt'] },
   { key: 'missionBusinesses', model: 'missionBusiness', primaryKey: ['missionId', 'businessId'] },
   { key: 'missionCategories', model: 'missionCategory', primaryKey: ['missionId', 'categoryId'] },
@@ -46,7 +46,7 @@ export const TABLES: TableMeta[] = [
   { key: 'spins', model: 'spin', primaryKey: ['id'], dateTimes: ['createdAt'] },
   // The ID photo (KycDocument) is deliberately not listed: it never enters the snapshot.
   { key: 'kycRequests', model: 'kycRequest', primaryKey: ['id'], dateTimes: ['createdAt', 'reviewedAt'], dates: ['birthDate'] },
-  { key: 'birthdayPerks', model: 'birthdayPerk', primaryKey: ['businessId'], dateTimes: ['updatedAt'] },
+  { key: 'birthdayPerks', model: 'birthdayPerk', primaryKey: ['id'], dateTimes: ['updatedAt'] },
   { key: 'birthdayClaims', model: 'birthdayClaim', primaryKey: ['id'], dateTimes: ['createdAt'] },
   { key: 'pointMovements', model: 'pointMovement', primaryKey: ['id'], dateTimes: ['createdAt'] },
   { key: 'statusMovements', model: 'statusMovement', primaryKey: ['id'], dateTimes: ['createdAt'] },

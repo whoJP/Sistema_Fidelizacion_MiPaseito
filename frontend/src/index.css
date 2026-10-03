@@ -6417,6 +6417,13 @@ a.kyc-banner:hover > svg:last-child {
   font-size: 0.78rem;
   color: var(--subtle);
 }
+.bday-gift-title {
+  flex-wrap: wrap;
+}
+.bday-gift-title small {
+  flex-basis: 100%;
+  font-weight: 400;
+}
 .bday-gifts li.is-claimed {
   border-color: rgb(76 217 100 / 0.3);
 }
@@ -7309,6 +7316,126 @@ g:has(.wheel-extra_spin) .wheel-label {
 .register-hint.is-birthday {
   border-color: rgb(var(--accent-rgb) / 0.6);
   background: linear-gradient(120deg, rgb(var(--accent-rgb) / 0.16), rgb(var(--accent-rgb) / 0.04));
+}
+
+.page-note {
+  margin: 0;
+  max-width: 72ch;
+}
+.table-rows-click tbody tr {
+  cursor: pointer;
+}
+.table-rows-click tbody tr:hover td {
+  background: rgb(var(--accent-rgb) / 0.05);
+}
+.detail-facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 0.75rem 1.25rem;
+  margin: 0;
+}
+.detail-facts dt {
+  font-size: 0.74rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.detail-facts dd {
+  margin: 0.15rem 0 0;
+}
+.select-sm {
+  width: auto;
+  min-height: 36px;
+  padding: 0.3rem 2rem 0.3rem 0.75rem;
+  font-size: 0.86rem;
+}
+
+/* ---------- Beneficios del cliente en caja ---------- */
+.stack-xs {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 0;
+}
+.row.gap-sm {
+  gap: 0.4rem;
+}
+.benefits-card {
+  border-color: rgb(var(--accent-rgb) / 0.45);
+}
+.benefit-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding: 0.85rem 0.95rem;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+}
+.benefit-group + .benefit-group {
+  margin-top: 0.75rem;
+}
+.benefit-group.is-birthday {
+  border-color: rgb(var(--accent-rgb) / 0.55);
+  background: linear-gradient(120deg, rgb(var(--accent-rgb) / 0.12), rgb(var(--accent-rgb) / 0.02));
+}
+.benefit-group > p {
+  margin: 0;
+}
+.benefit-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+.benefit-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.55rem 0.7rem;
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--radius-sm);
+}
+.benefit-row > .grow {
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+}
+.benefit-row.is-on {
+  border-style: solid;
+  border-color: rgb(76 217 100 / 0.45);
+  background: rgb(76 217 100 / 0.06);
+}
+.benefit-row .check {
+  align-items: flex-start;
+}
+.benefit-row .check input {
+  margin-top: 0.2rem;
+}
+.confirm-list {
+  margin: 0.25rem 0 0;
+  padding-left: 1.1rem;
+}
+.receipt-discount {
+  color: var(--success);
+}
+.receipt-benefits {
+  list-style: none;
+  margin: 0 0 0.75rem;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+.receipt-benefits li {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+.receipt-benefits svg {
+  color: var(--gold);
 }
 .perk-summary {
   display: flex;

@@ -30,6 +30,7 @@ import {
   Settings,
   ShieldCheck,
   Target,
+  TicketX,
   Trophy,
   UserRound,
   Users,
@@ -88,6 +89,7 @@ const ADMIN_NAV: NavItem[] = [
   { to: '/admin/badges', label: 'Insignias', icon: Award },
   { to: '/admin/fraud', label: 'Fraude', icon: AlertTriangle, primary: true },
   { to: '/admin/cancellations', label: 'Anulaciones', icon: FileX2, primary: true },
+  { to: '/admin/redemptions', label: 'Canjes cancelados', icon: TicketX },
   { to: '/admin/kyc', label: 'Verificaciones', icon: IdCard },
   { to: '/admin/users', label: 'Usuarios', icon: Users },
   { to: '/admin/audit', label: 'Auditoría', icon: ClipboardList },
@@ -98,15 +100,10 @@ function merchantNav(businessId: number, isManager: boolean): NavItem[] {
   const base = `/merchant/${businessId}`
   return [
     { to: base, label: 'Registrar compra', short: 'Compra', icon: ReceiptText, end: true, primary: true },
-    { to: `${base}/validate`, label: 'Validar canje', short: 'Canje', icon: ScanLine, primary: true },
+    { to: `${base}/rewards`, label: 'Canje', icon: Gift, primary: true },
     { to: `${base}/birthday`, label: 'Cumpleaños', icon: CakeSlice, primary: true },
     { to: `${base}/transactions`, label: 'Movimientos', icon: History, primary: true },
-    ...(isManager
-      ? [
-          { to: `${base}/rewards`, label: 'Recompensas', short: 'Premios', icon: Gift },
-          { to: `${base}/catalog`, label: 'Catálogo', icon: BookOpen },
-        ]
-      : []),
+    ...(isManager ? [{ to: `${base}/catalog`, label: 'Catálogo', icon: BookOpen }] : []),
   ]
 }
 

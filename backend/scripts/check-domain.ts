@@ -12,6 +12,7 @@ import {
   statusTotal,
   visibleRewards,
 } from '../../frontend/src/domain/loyalty.ts'
+import { todayKey } from '../../frontend/src/domain/time.ts'
 
 const db = buildDemoDatabase()
 const ana = 2
@@ -40,6 +41,7 @@ const window = (startsAt: number, endsAt: number) => ({
   goal: 1,
   rewardPoints: 77,
   rewardStatus: 0,
+  rewardSpins: 0,
   startsAt: new Date(startsAt).toISOString(),
   endsAt: new Date(endsAt).toISOString(),
   status: 'ACTIVE' as const,
@@ -74,7 +76,7 @@ const request = A.requestCancellation(db, { transactionId: p3.transaction.id, re
 assert.throws(() => A.reviewCancellation(db, { requestId: request.id, decision: 'APPROVED', note: 'ok' }, luis), /administrador/)
 A.reviewCancellation(db, { requestId: request.id, decision: 'APPROVED', note: 'el cajero eligió otro cliente' }, 1)
 assert.equal(p3.transaction.status, 'CANCELLED')
-const notice = db.notifications.find((n) => n.userId === ana)!
+const notice = db.notifications.filter((n) => n.userId === ana).at(-1)!
 assert.match(notice.message, /Se te descontaron \d+ puntos .* Motivo: El cajero eligió otro cliente\./)
 assert.throws(() => A.requestCancellation(db, { transactionId: p3.transaction.id, reason: 'Otra vez por favor' }, luis), /anulada/)
 
@@ -96,8 +98,89 @@ assert.throws(() => A.saveReward(db2, 1, { ...db2.rewards[0], discountAmount: 30
 A.saveReward(db2, 1, { ...db2.rewards[0], discountAmount: 30 }, 3)
 assert.match(rewardTitle(db2, db2.rewards[0]), /30.*de descuento/)
 const pending = db2.redemptions.find((r) => r.status === 'PENDING')!
-const cinnabonStaff = db2.businessMembers.find((m) => m.businessId === 7)!.userId
-assert.throws(() => A.validateRedemption(db2, { token: pending.verificationToken, businessId: 7, staffId: cinnabonStaff }), /solo se canjea/)
+const staffOf = (businessId: number) => db2.businessMembers.find((m) => m.businessId === businessId && m.status === 'ACTIVE')!.userId
+const lineOf = (businessId: number, name: string, quantity = 1) => ({
+  catalogItemId: db2.catalogItems.find((i) => i.businessId === businessId && i.name === name)!.id,
+  quantity,
+})
+assert.throws(
+  () => A.registerPurchase(db2, { customerId: ana, businessId: 7, performedById: staffOf(7), items: [lineOf(7, 'MiniBon')], redemptionIds: [pending.id] }),
+  /solo se usa allí/,
+)
+assert.throws(() => A.rejectRedemption(db2, { redemptionId: pending.id, reason: 'No tenemos stock hoy' }, staffOf(7)), /Solo el personal/)
+
+// Canjes are applied with the purchase at the counter and come back when the purchase is undone.
+const pendingReward = db2.rewards.find((r) => r.id === pending.rewardId)!
+assert.equal(pendingReward.businessId, 1)
+const withCanje = A.registerPurchase(db2, {
+  customerId: ana,
+  businessId: 1,
+  performedById: staffOf(1),
+  items: [lineOf(1, 'Capuchino', 2)],
+  redemptionIds: [pending.id],
+})
+assert.equal(withCanje.transaction.discount, pendingReward.discountAmount, 'el canje descuenta del total')
+assert.equal(withCanje.transaction.amount, 44 - pendingReward.discountAmount!)
+assert.equal(pending.status, 'REDEEMED')
+assert.equal(pending.transactionId, withCanje.transaction.id)
+A.undoPurchase(db2, withCanje.transaction.id, staffOf(1))
+assert.equal(pending.status, 'PENDING', 'deshacer la compra devuelve el canje')
+
+// The business may refuse a canje: points back, customer notified without the internal reason.
+const balance = pointsBalance(db2, ana)
+assert.throws(() => A.rejectRedemption(db2, { redemptionId: pending.id, reason: 'corto' }, staffOf(1)), /al menos/)
+A.rejectRedemption(db2, { redemptionId: pending.id, reason: 'Se acabó el producto de la promoción' }, staffOf(1))
+assert.equal(pending.status, 'CANCELLED')
+assert.equal(pending.cancelReason, 'Se acabó el producto de la promoción.')
+assert.equal(pointsBalance(db2, ana), balance + pending.pointsSpent, 'puntos devueltos')
+const refusal = db2.notifications.filter((n) => n.userId === ana).at(-1)!
+assert.match(refusal.title, /Canje cancelado/)
+assert.doesNotMatch(refusal.message, /producto de la promoción/)
+
+// Birthday benefits: applied automatically at checkout, once a year per business.
+const anaUser = db2.users.find((u) => u.id === ana)!
+anaUser.birthDate = `1995${todayKey().slice(4)}`
+const clothes = [lineOf(3, 'Polera básica'), lineOf(3, 'Jeans clásicos')]
+const birthday = A.registerPurchase(db2, { customerId: ana, businessId: 3, performedById: staffOf(3), items: clothes, useBirthday: true })
+assert.equal(birthday.transaction.discount, 94.5 + 100, '50% en la polera y Bs 100 en el jean')
+assert.equal(birthday.transaction.amount, 189 + 399 - 194.5)
+assert.ok(db2.birthdayClaims.some((c) => c.userId === ana && c.businessId === 3 && c.transactionId === birthday.transaction.id))
+assert.throws(
+  () => A.registerPurchase(db2, { customerId: ana, businessId: 3, performedById: staffOf(3), items: clothes, useBirthday: true }),
+  /ya usó sus beneficios/,
+)
+const gift = A.registerPurchase(db2, { customerId: ana, businessId: 2, performedById: staffOf(2), items: [lineOf(2, 'Pizza personal')], useBirthday: true })
+assert.ok(!db2.birthdayClaims.some((c) => c.transactionId === gift.transaction.id), 'sin la pizza familiar no hay regalo')
+anaUser.birthDate = '1995-01-01'
+assert.throws(
+  () => A.registerPurchase(db2, { customerId: ana, businessId: 2, performedById: staffOf(2), items: [lineOf(2, 'Pizza personal')], useBirthday: true }),
+  /no es el cumpleaños/,
+)
+
+// Birthday benefits configuration: manager only, with a condition that makes sense.
+const giftData = {
+  type: 'FREE_PRODUCT' as const,
+  discountPercent: null,
+  discountAmount: null,
+  catalogItemId: lineOf(3, 'Polera básica').catalogItemId,
+  quantity: 1,
+  giftCondition: 'MIN_PURCHASE' as const,
+  minimumPurchase: null,
+  requiredItemId: null,
+  discountScope: null,
+  targetItemId: null,
+  targetCategory: null,
+  description: null,
+  isActive: true,
+}
+const clothesManager = db2.businessMembers.find((m) => m.businessId === 3 && m.role === 'MANAGER' && m.status === 'ACTIVE')
+if (clothesManager) {
+  assert.throws(() => A.saveBirthdayPerk(db2, null, 3, giftData, clothesManager.userId), /compra mínima/)
+  const saved = A.saveBirthdayPerk(db2, null, 3, { ...giftData, minimumPurchase: 500 }, clothesManager.userId)
+  A.deleteBirthdayPerk(db2, saved.id, clothesManager.userId)
+  assert.ok(!db2.birthdayPerks.some((p) => p.id === saved.id))
+}
+assert.throws(() => A.saveBirthdayPerk(db2, null, 3, { ...giftData, minimumPurchase: 500 }, 1), /encargado/)
 
 // Three account types: store staff (MERCHANT) work at one business and are not customers.
 for (const m of db2.businessMembers) assert.equal(db2.users.find((u) => u.id === m.userId)?.role, 'MERCHANT')

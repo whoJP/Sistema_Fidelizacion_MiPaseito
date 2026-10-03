@@ -130,12 +130,15 @@ type EventData = Parameters<typeof A.saveEvent>[2]
 type BadgeData = Parameters<typeof A.saveBadge>[2]
 type SpaceData = Parameters<typeof A.saveSpace>[2]
 type PrizeData = Parameters<typeof A.savePrize>[2]
-type BirthdayPerkData = Parameters<typeof A.saveBirthdayPerk>[2]
 type Scope = { businessIds: number[]; categoryIds: number[] }
 
 export const commands = {
   // ---------- Merchant ----------
-  registerPurchase: (db: Database, actor: Actor, input: { customerId: number; businessId: number; items: A.PurchaseLine[] }) =>
+  registerPurchase: (
+    db: Database,
+    actor: Actor,
+    input: { customerId: number; businessId: number; items: A.PurchaseLine[]; redemptionIds?: number[]; useBirthday?: boolean },
+  ) =>
     A.registerPurchase(db, {
       customerId: id(input.customerId, 'Cliente'),
       businessId: id(input.businessId, 'Establecimiento'),
@@ -143,6 +146,8 @@ export const commands = {
         const line = value as Partial<A.PurchaseLine> | null
         return { catalogItemId: id(line?.catalogItemId, 'Producto'), quantity: int(line?.quantity, 'Cantidad') }
       }),
+      redemptionIds: ids(input.redemptionIds, 'Lista de canjes'),
+      useBirthday: input.useBirthday === true,
       performedById: actor.id,
     }),
 
@@ -156,27 +161,44 @@ export const commands = {
     return true
   },
 
-  validateRedemption: (db: Database, actor: Actor, input: { token: string; businessId: number }) =>
-    A.validateRedemption(db, { token: str(input.token, 'Código de canje'), businessId: id(input.businessId, 'Establecimiento'), staffId: actor.id }),
+  redeemWithoutPurchase: (db: Database, actor: Actor, input: { redemptionId: number }) => {
+    A.redeemWithoutPurchase(db, id(input.redemptionId, 'Canje'), actor.id)
+    return true
+  },
 
-  claimBirthdayPerk: (db: Database, actor: Actor, input: { customerId: number; businessId: number }) =>
-    A.claimBirthdayPerk(db, { customerId: id(input.customerId, 'Cliente'), businessId: id(input.businessId, 'Establecimiento'), staffId: actor.id }),
+  rejectRedemption: (db: Database, actor: Actor, input: { redemptionId: number; reason: string }) => {
+    A.rejectRedemption(db, { redemptionId: id(input.redemptionId, 'Canje'), reason: str(input.reason, 'Motivo') }, actor.id)
+    return true
+  },
 
-  saveBirthdayPerk: (db: Database, actor: Actor, input: { businessId: number; data: BirthdayPerkData }) => {
+  saveBirthdayPerk: (db: Database, actor: Actor, input: { id: number | null; businessId: number; data: A.BirthdayPerkData }) => {
+    const d = data(input)
     A.saveBirthdayPerk(
       db,
+      optionalId(input.id),
       id(input.businessId, 'Establecimiento'),
       {
-        type: oneOf(data(input).type, REWARD_TYPES, 'Tipo de regalo'),
-        discountPercent: optionalInt(data(input).discountPercent, 'Porcentaje'),
-        discountAmount: optionalNum(data(input).discountAmount, 'Descuento'),
-        catalogItemId: optionalId(data(input).catalogItemId),
-        quantity: optionalInt(data(input).quantity, 'Cantidad') ?? 1,
-        description: optionalStr(data(input).description),
-        isActive: data(input).isActive !== false,
+        type: oneOf(d.type, REWARD_TYPES, 'Tipo de beneficio'),
+        discountPercent: optionalInt(d.discountPercent, 'Porcentaje'),
+        discountAmount: optionalNum(d.discountAmount, 'Descuento'),
+        catalogItemId: optionalId(d.catalogItemId, 'Producto de regalo'),
+        quantity: optionalInt(d.quantity, 'Cantidad') ?? 1,
+        giftCondition: d.giftCondition === null || d.giftCondition === undefined ? null : oneOf(d.giftCondition, ['MIN_PURCHASE', 'PRODUCT'] as const, 'Condición'),
+        minimumPurchase: optionalNum(d.minimumPurchase, 'Compra mínima'),
+        requiredItemId: optionalId(d.requiredItemId, 'Producto a comprar'),
+        discountScope: d.discountScope === null || d.discountScope === undefined ? null : oneOf(d.discountScope, ['ALL', 'PRODUCT', 'CATEGORY'] as const, 'Alcance'),
+        targetItemId: optionalId(d.targetItemId, 'Producto con descuento'),
+        targetCategory: optionalStr(d.targetCategory, 'Categoría'),
+        description: optionalStr(d.description),
+        isActive: d.isActive !== false,
       },
       actor.id,
     )
+    return true
+  },
+
+  deleteBirthdayPerk: (db: Database, actor: Actor, input: { id: number }) => {
+    A.deleteBirthdayPerk(db, id(input.id, 'Beneficio'), actor.id)
     return true
   },
 
@@ -188,6 +210,7 @@ export const commands = {
         businessId: id(data(input).businessId, 'Establecimiento'),
         name: str(data(input).name),
         description: optionalStr(data(input).description),
+        category: optionalStr(data(input).category, 'Categoría'),
         price: num(data(input).price, 'Precio'),
         isAvailable: data(input).isAvailable !== false,
       },

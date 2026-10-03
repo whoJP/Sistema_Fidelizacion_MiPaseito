@@ -4,12 +4,12 @@ import { ClubGem } from '../../components/BrandMark'
 import { Sparks } from '../../components/Sparks'
 import { haptic } from '../../lib/motion'
 import { useDb } from '../../data/store'
-import { redemptionExpiresAt } from '../../data/actions'
 import { MemberCard } from '../../components/MemberCard'
 import { TierChip } from '../../components/TierIcon'
 import {
   currentTier,
   pointsBalance,
+  redemptionExpiresAt,
   rewardBlocker,
   rewardConditions,
   rewardRemainingStock,
@@ -34,8 +34,10 @@ const ORIGIN_LABEL: Record<Exclude<Redemption['origin'], 'POINTS'>, string> = {
   BIRTHDAY: 'Regalo de cumpleaños',
 }
 
-/** Gifts last days; point redemptions last minutes and show a countdown. */
+/** Under this much time left, a canje shows a countdown instead of its end date. */
 const LONG_VALIDITY_MS = 60 * 60_000
+
+const cancelledByBusiness = (r: Redemption) => r.status === 'CANCELLED' && r.cancelledById !== null
 
 export function RewardsPage() {
   const db = useDb()
@@ -56,7 +58,7 @@ export function RewardsPage() {
     const row = rowOf(trigger)
     const ok = await confirmDialog({
       title: '¿Cancelar este canje?',
-      message: `El código dejará de funcionar y te devolvemos ${formatInt(r.pointsSpent)} puntos.`,
+      message: `Deja de estar activo en tu tarjeta y te devolvemos ${formatInt(r.pointsSpent)} puntos.`,
       confirmLabel: 'Cancelar canje',
       cancelLabel: 'Volver',
       tone: 'danger',
@@ -64,7 +66,7 @@ export function RewardsPage() {
     if (ok && (await run('cancelRedemption', { redemptionId: r.id }, 'Canje cancelado, puntos devueltos'))) flash(row)
   }
   const balance = pointsBalance(db, user.id)
-  const redemptionMinutes = Math.round(redemptionExpiresAt(db, new Date(0).toISOString()).getTime() / 60_000)
+  const redemptionDays = Math.round(redemptionExpiresAt(db, new Date(0).toISOString()).getTime() / 86_400_000)
 
   const [businessId, setBusinessId] = useState<number | null>(null)
   const available = visibleRewards(db).sort((a, b) => a.pointsCost - b.pointsCost)
@@ -175,11 +177,17 @@ export function RewardsPage() {
                       {business?.name} · {r.origin === 'POINTS' ? `${formatInt(r.pointsSpent)} puntos` : ORIGIN_LABEL[r.origin]}
                     </div>
                     <div className="muted small">
-                      {r.status === 'PENDING' ? <ExpiresIn redemption={r} /> : formatDateTime(r.redeemedAt ?? r.createdAt)}
+                      {r.status === 'PENDING' ? (
+                        <ExpiresIn redemption={r} />
+                      ) : cancelledByBusiness(r) ? (
+                        `El local no pudo entregarlo${r.pointsSpent > 0 ? ' · puntos devueltos' : ''}`
+                      ) : (
+                        formatDateTime(r.redeemedAt ?? r.cancelledAt ?? r.createdAt)
+                      )}
                     </div>
                   </div>
                   <div className="row gap">
-                    <Badge tone={tone}>{label}</Badge>
+                    <Badge tone={tone}>{r.status === 'PENDING' ? 'Activo' : label}</Badge>
                     {r.status === 'PENDING' && (
                       <>
                         <button className="btn btn-primary btn-sm" onClick={() => setShowing(r.id)}>
@@ -221,7 +229,8 @@ export function RewardsPage() {
               </span>
             </div>
             <span className="redeem-note">
-              <Clock size={14} aria-hidden /> Válido {redemptionMinutes} min · canjea ya en el local
+              <Clock size={14} aria-hidden /> Queda activo {redemptionDays === 1 ? '1 día' : `${redemptionDays} días`} en tu tarjeta · muéstrala al
+              pagar en el local
             </span>
           </div>
           <div className="row end gap">
@@ -277,7 +286,7 @@ function RedemptionPass({
           <CheckCircle2 size={32} />
           <Sparks count={16} spread={64} />
         </span>
-        <h3>¡Canje validado!</h3>
+        <h3>¡Canje usado!</h3>
         <p className="muted">
           Disfruta tu <b>{title(r.rewardId)}</b>
         </p>
@@ -293,7 +302,7 @@ function RedemptionPass({
         <span className="pass-icon" aria-hidden>
           <TimerOff size={32} />
         </span>
-        <h3>{r.status === 'CANCELLED' ? 'Canje cancelado' : gift ? 'Este regalo venció' : 'El código expiró'}</h3>
+        <h3>{r.status === 'CANCELLED' ? (cancelledByBusiness(r) ? 'El local no pudo entregarlo' : 'Canje cancelado') : gift ? 'Este regalo venció' : 'Este canje venció'}</h3>
         <p className="muted">
           {gift
             ? '¡Que no se te pase el próximo!'
@@ -311,14 +320,14 @@ function RedemptionPass({
     <div className="stack center">
       <h3>{title(r.rewardId)}</h3>
       <p className="muted small">
-        Muestra tu tarjeta en <b>{where(r.rewardId)}</b>
+        Muestra tu tarjeta al pagar en <b>{where(r.rewardId)}</b>: el personal verá tu canje y lo aplicará.
       </p>
       <div className="pass-card">
         <MemberCard user={user} tier={currentTier(db, user.id)} points={pointsBalance(db, user.id)} revealed locked onToggle={() => {}} />
       </div>
-      {gift && expires - now > LONG_VALIDITY_MS ? (
+      {expires - now > LONG_VALIDITY_MS ? (
         <p className="small">
-          {ORIGIN_LABEL[r.origin as keyof typeof ORIGIN_LABEL]} · válido hasta el <b>{formatDateTime(new Date(expires).toISOString())}</b>
+          {gift ? `${ORIGIN_LABEL[r.origin as keyof typeof ORIGIN_LABEL]} · ` : ''}Activo hasta el <b>{formatDateTime(new Date(expires).toISOString())}</b>
         </p>
       ) : (
         <div className="pass-timer">
@@ -329,10 +338,7 @@ function RedemptionPass({
           <TimeBar key={r.id} start={created} end={expires} now={now} />
         </div>
       )}
-      <p className="muted small">{gift ? 'Regalo · no usa tus puntos' : 'Si vence, recuperas tus puntos'}</p>
-      <p className="pass-fallback small">
-        Código <code className="token">{r.verificationToken}</code>
-      </p>
+      <p className="muted small">{gift ? 'Regalo · no usa tus puntos' : 'Si vence o el local no puede entregarlo, recuperas tus puntos'}</p>
     </div>
   )
 }
@@ -342,7 +348,7 @@ function ExpiresIn({ redemption: r }: { redemption: Redemption }) {
   const now = useNow(1000)
   const expires = redemptionExpiresAt(db, r.createdAt, r.expiresAt)
   const left = expires.getTime() - now
-  if (left > LONG_VALIDITY_MS) return <>Válido hasta el {formatDateTime(expires.toISOString())}</>
+  if (left > LONG_VALIDITY_MS) return <>Activo en tu tarjeta hasta el {formatDateTime(expires.toISOString())}</>
   if (left > 0) return <>Vence en {formatCountdown(left)}</>
   return <>{r.origin === 'POINTS' ? 'Expiró · puntos devueltos' : 'Venció'}</>
 }

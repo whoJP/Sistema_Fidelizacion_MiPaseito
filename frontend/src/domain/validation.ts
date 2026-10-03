@@ -11,6 +11,8 @@ export const LIMITS = {
   /** Businesses, products, missions, promotions, events and spaces. */
   name: 150,
   categoryName: 100,
+  /** Group of products inside a business catalog (CatalogItem.category). */
+  catalogCategory: 80,
   badgeName: 100,
   tierName: 50,
   description: 500,

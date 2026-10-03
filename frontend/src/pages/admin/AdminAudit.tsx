@@ -31,10 +31,12 @@ const ENTITY_LABELS: Record<string, string> = {
   Event: 'evento',
   Badge: 'insignia',
   SystemSetting: 'configuración',
+  Redemption: 'canje',
+  BirthdayClaim: 'beneficio de cumpleaños',
 }
 
 function areaOf(log: AuditLog): Area {
-  if (['Transaction', 'FraudAlert'].includes(log.entityType)) return 'purchases'
+  if (['Transaction', 'FraudAlert', 'Redemption', 'BirthdayClaim'].includes(log.entityType)) return 'purchases'
   if (log.entityType === 'User' || log.action.startsWith('MEMBER_')) return 'users'
   if (['Event', 'Badge'].includes(log.entityType)) return 'events'
   if (log.entityType === 'SystemSetting') return 'settings'
@@ -69,6 +71,14 @@ function describe(log: AuditLog): string {
       return 'Asignó personal a'
     case 'MEMBER_DEACTIVATED':
       return 'Quitó personal de'
+    case 'REDEMPTION_CANCELLED':
+      return 'Canceló un canje en caja'
+    case 'BIRTHDAY_PERK_SAVED':
+      return 'Configuró un beneficio de cumpleaños de'
+    case 'BIRTHDAY_PERK_DELETED':
+      return 'Eliminó un beneficio de cumpleaños de'
+    case 'BIRTHDAY_PERK_CLAIMED':
+      return 'Aplicó beneficios de cumpleaños'
     default:
       return log.action
   }
@@ -114,6 +124,17 @@ function target(db: Database, log: AuditLog): string {
       return db.events.find((x) => x.id === id)?.name ?? `#${id}`
     case 'Badge':
       return db.badges.find((x) => x.id === id)?.name ?? `#${id}`
+    case 'Redemption': {
+      const r = db.redemptions.find((x) => x.id === id)
+      const reward = r && db.rewards.find((x) => x.id === r.rewardId)
+      const customer = r && db.users.find((u) => u.id === r.userId)
+      return reward ? `${rewardTitle(db, reward)}${customer ? ` · ${fullName(customer)}` : ''}` : `Canje #${id}`
+    }
+    case 'BirthdayClaim': {
+      const c = db.birthdayClaims.find((x) => x.id === id)
+      const customer = c && db.users.find((u) => u.id === c.userId)
+      return c ? `${c.perkTitle}${customer ? ` · ${fullName(customer)}` : ''}` : `#${id}`
+    }
     case 'SystemSetting': {
       const key = log.action.split(':')[1] as SettingKey | undefined
       const value = key ? db.systemSettings.find((s) => s.key === key)?.value : undefined

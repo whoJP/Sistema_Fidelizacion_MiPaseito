@@ -12,7 +12,7 @@ export const SETTINGS: Record<SettingKey, SettingInfo> = {
   STATUS_BASE_RATE: { label: 'Puntos de nivel por cada Bs 1 gastado', unit: 'puntos de nivel', hint: 'Solo suben de nivel; no se gastan', step: 0.1 },
   DISCOVERY_STATUS_BONUS: { label: 'Premio por comprar en una tienda nueva', unit: 'puntos de nivel', hint: 'Primera compra en cada tienda', step: 1 },
   STREAK_STATUS_BONUS: { label: 'Premio por volver semana tras semana', unit: 'puntos de nivel por semana', hint: 'Desde la 2.ª semana seguida (máx. 10)', step: 1 },
-  REDEMPTION_EXPIRATION_MINUTES: { label: 'Tiempo para usar un código de canje', unit: 'minutos', hint: 'Si vence, los puntos vuelven', step: 1 },
+  REDEMPTION_EXPIRATION_DAYS: { label: 'Días que un canje queda activo', unit: 'días', hint: 'Si no se usa en el local, los puntos vuelven', step: 1 },
   ABNORMAL_AMOUNT_THRESHOLD: { label: 'Revisar compras desde', unit: 'Bs', hint: 'Esperan tu aprobación en Fraude', step: 1 },
   WELCOME_STATUS_BONUS: { label: 'Puntos de nivel de bienvenida', unit: 'puntos de nivel', hint: 'Al registrarse', step: 1 },
   VISIT_CARD_SIZE: { label: 'Casilleros de la tarjeta de visitas', unit: 'sellos', hint: 'Un sello por día con compra o visita', step: 1 },

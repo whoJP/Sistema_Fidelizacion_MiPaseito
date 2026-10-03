@@ -6,9 +6,10 @@ import type { CatalogItem } from '../../types/domain'
 import { Badge, Card, Empty, Field, Modal, PageHeader, flash, run, vanish } from '../../components/ui'
 import { confirmDialog } from '../../components/dialog'
 import { LIMITS, moneyError } from '../../domain/validation'
+import { catalogCategories } from '../../domain/checkout'
 import { useWorkplace } from './useWorkplace'
 
-type Draft = { id: number | null; name: string; description: string; price: string; isAvailable: boolean }
+type Draft = { id: number | null; name: string; description: string; category: string; price: string; isAvailable: boolean }
 type Filter = 'all' | 'available' | 'unavailable'
 
 const FILTERS: { id: Filter; label: string }[] = [
@@ -21,6 +22,7 @@ const toDraft = (item?: CatalogItem): Draft => ({
   id: item?.id ?? null,
   name: item?.name ?? '',
   description: item?.description ?? '',
+  category: item?.category ?? '',
   price: item ? item.price.toString() : '',
   isAvailable: item?.isAvailable ?? true,
 })
@@ -45,9 +47,10 @@ export function CatalogPage() {
   const all = db.catalogItems
     .filter((i) => i.businessId === business.id && i.deletedAt === null)
     .sort((a, b) => a.name.localeCompare(b.name, 'es'))
+  const categories = catalogCategories(db, business.id)
   const q = normalizeText(query.trim())
   const items = all
-    .filter((i) => !q || normalizeText(i.name).includes(q) || normalizeText(i.description ?? '').includes(q))
+    .filter((i) => !q || [i.name, i.description ?? '', i.category ?? ''].some((s) => normalizeText(s).includes(q)))
     .filter((i) => filter === 'all' || i.isAvailable === (filter === 'available'))
   const counts: Record<Filter, number> = {
     all: all.length,
@@ -75,6 +78,7 @@ export function CatalogPage() {
           businessId: business.id,
           name: draft.name,
           description: draft.description.trim() || null,
+          category: draft.category.trim() || null,
           price,
           isAvailable: draft.isAvailable,
         },
@@ -83,7 +87,7 @@ export function CatalogPage() {
     )
     if (!ok) return
     if (addAnother && !draft.id) {
-      setDraft(toDraft())
+      setDraft({ ...toDraft(), category: draft.category })
       setRound((r) => r + 1)
     } else setDraft(null)
   }
@@ -176,7 +180,9 @@ export function CatalogPage() {
                   <tr key={item.id}>
                     <td>
                       <strong>{item.name}</strong>
-                      {item.description && <div className="muted small">{item.description}</div>}
+                      {(item.category || item.description) && (
+                        <div className="muted small">{[item.category, item.description].filter(Boolean).join(' · ')}</div>
+                      )}
                     </td>
                     <td className="num" data-label="Precio">
                       {formatMoney(item.price)}
@@ -231,6 +237,20 @@ export function CatalogPage() {
                 value={draft.price}
                 onChange={(e) => setDraft({ ...draft, price: e.target.value })}
               />
+            </Field>
+            <Field label="Categoría (opcional)" hint="Agrupa productos, p. ej. para descuentos de cumpleaños por categoría">
+              <input
+                list="catalog-categories"
+                maxLength={LIMITS.catalogCategory}
+                placeholder="Ej.: Poleras"
+                value={draft.category}
+                onChange={(e) => setDraft({ ...draft, category: e.target.value })}
+              />
+              <datalist id="catalog-categories">
+                {categories.map((c) => (
+                  <option key={c} value={c} />
+                ))}
+              </datalist>
             </Field>
             <Field label="Descripción (opcional)">
               <textarea rows={3} maxLength={LIMITS.description} value={draft.description} onChange={(e) => setDraft({ ...draft, description: e.target.value })} />

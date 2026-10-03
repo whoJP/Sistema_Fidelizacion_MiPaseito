@@ -30,7 +30,7 @@ Vocabulario: en código y base de datos se mantienen los nombres en inglés (`Po
 | 10 | PointMovement | id | userId → User, transactionId? → Transaction, redemptionId? → Redemption, missionId? → Mission, promotionId? → Promotion, eventId? → Event | userId, createdAt |
 | 11 | StatusMovement | id | userId → User, transactionId? → Transaction, missionId? → Mission | userId |
 | 12 | Reward | id | businessId → Business, catalogItemId? → CatalogItem, minimumTierId? → Tier, createdById → User | businessId |
-| 13 | Redemption | id | userId → User, rewardId → Reward, businessId? → Business, validatedById? → User | verificationToken UNIQUE, userId |
+| 13 | Redemption | id | userId → User, rewardId → Reward, businessId? → Business, validatedById? → User, transactionId? → Transaction, cancelledById? → User | verificationToken UNIQUE, userId, transactionId, cancelledById |
 | 14 | Mission | id | createdById → User | — |
 | 15 | MissionBusiness | (missionId, businessId) | Mission, Business | businessId |
 | 16 | MissionCategory | (missionId, categoryId) | Mission, Category | categoryId |
@@ -132,8 +132,32 @@ La recompensa se entrega automáticamente al completarla (por eso no existe `rew
 `TOTAL_PURCHASE_AMOUNT`, `goal` y `progress` se expresan en Bs enteros. Si se anula una compra y el objetivo deja de
 cumplirse, la misión vuelve a quedar pendiente y su premio se descuenta con movimientos `REVERSAL` / `ADJUSTMENT`.
 
-Un `Redemption` `PENDING` vence a los `REDEMPTION_EXPIRATION_MINUTES` (`SystemSetting`, 15 por defecto) desde
-`createdAt`: el servidor revisa cada 15 s, lo pasa a `EXPIRED` y devuelve los puntos con un movimiento `REVERSAL`.
+Un `Redemption` `PENDING` queda activo en la tarjeta del cliente `REDEMPTION_EXPIRATION_DAYS` días (`SystemSetting`,
+7 por defecto) desde `createdAt`: el servidor revisa cada 15 s, lo pasa a `EXPIRED` y devuelve los puntos con un
+movimiento `REVERSAL`.
+
+### Beneficios en caja (un solo QR)
+
+El cliente solo muestra el QR de su tarjeta. Al escanearlo en **Registrar compra**, la caja ve sus canjes activos de
+ese local y, si hoy es su cumpleaños verificado, los beneficios de cumpleaños del local:
+
+- **Canje usado con la compra**: `Redemption.status = REDEEMED`, `transactionId` = la compra y `discount` = Bs
+  descontados (`NULL` si es un producto gratis). `Transaction.amount` es lo cobrado y `Transaction.discount` el total
+  de descuentos; los puntos se calculan sobre lo cobrado. Un producto gratis también se puede entregar sin compra
+  (`transactionId NULL`).
+- **Canje cancelado por el local**: `status = CANCELLED`, `cancelledById`, `cancelledAt` y `cancelReason`. Los puntos
+  vuelven con un `REVERSAL` y el cliente recibe un aviso sin el motivo; `cancelReason` solo llega al administrador
+  (log en *Canjes cancelados*).
+- **`BirthdayPerk`** (varios por negocio, los configura el encargado): `FREE_PRODUCT` con `giftCondition`
+  `MIN_PURCHASE` (`minimumPurchase`) o `PRODUCT` (`requiredItemId`); descuentos (`PERCENT_DISCOUNT` /
+  `AMOUNT_DISCOUNT`) con `discountScope` `ALL`, `PRODUCT` (`targetItemId`, 1 unidad) o `CATEGORY` (`targetCategory`,
+  el producto más caro de esa `CatalogItem.category`). Los descuentos de cumpleaños se aplican primero y los canjes
+  sobre el resto.
+- **`BirthdayClaim`** registra el uso: una fila por (`userId`, `businessId`, `year`) con la compra, quién atendió,
+  `perkTitle` y `discount`. Solo se crea si aplicó algún beneficio.
+
+Si se anula la compra (deshacer, anulación aprobada o fraude), sus canjes vuelven a `PENDING` y su `BirthdayClaim` se
+borra, así el cliente puede volver a usarlos.
 
 `Badge.date` (insignias `SPECIAL_DATE`) es un día calendario de Bolivia (UTC−4): vale de 00:00 a 23:59 de ese día y
 se gana con una compra completada o un ingreso a evento en esa fecha.

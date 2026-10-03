@@ -24,7 +24,6 @@ const admin = () => import('./pages/admin')
 const page = <M,>(load: () => Promise<M>, pick: (m: M) => ComponentType) => lazy(() => load().then((m) => ({ default: pick(m) })))
 
 const RegisterPurchasePage = page(merchant, (m) => m.RegisterPurchasePage)
-const ValidateRedemptionPage = page(merchant, (m) => m.ValidateRedemptionPage)
 const MerchantTransactionsPage = page(merchant, (m) => m.MerchantTransactionsPage)
 const CatalogPage = page(merchant, (m) => m.CatalogPage)
 const MerchantRewardsPage = page(merchant, (m) => m.MerchantRewardsPage)
@@ -48,6 +47,7 @@ const AdminSpaces = page(admin, (m) => m.AdminSpaces)
 const AdminSpin = page(admin, (m) => m.AdminSpin)
 const AdminKyc = page(admin, (m) => m.AdminKyc)
 const AdminCancellations = page(admin, (m) => m.AdminCancellations)
+const AdminRedemptionCancellations = page(admin, (m) => m.AdminRedemptionCancellations)
 
 function homeFor(session: ReturnType<typeof useSession>) {
   if (session.loading) return '/app'
@@ -117,12 +117,12 @@ export default function App() {
             <Route path="/merchant" element={<MerchantUnassigned />} />
             <Route path="/merchant/:businessId" element={<RequireMembership />}>
               <Route index element={<RegisterPurchasePage />} />
-              <Route path="validate" element={<ValidateRedemptionPage />} />
+              <Route path="validate" element={<Navigate to="../rewards" replace />} />
+              <Route path="rewards" element={<MerchantRewardsPage />} />
               <Route path="transactions" element={<MerchantTransactionsPage />} />
               <Route path="birthday" element={<BirthdayPage />} />
               <Route element={<RequireMembership managerOnly />}>
                 <Route path="catalog" element={<CatalogPage />} />
-                <Route path="rewards" element={<MerchantRewardsPage />} />
               </Route>
             </Route>
           </Route>
@@ -137,6 +137,7 @@ export default function App() {
             <Route path="/admin/promotions" element={<AdminPromotions />} />
             <Route path="/admin/fraud" element={<AdminFraud />} />
             <Route path="/admin/cancellations" element={<AdminCancellations />} />
+            <Route path="/admin/redemptions" element={<AdminRedemptionCancellations />} />
             <Route path="/admin/users" element={<AdminUsers />} />
             <Route path="/admin/settings" element={<AdminSettings />} />
             <Route path="/admin/metrics" element={<AdminMetrics />} />

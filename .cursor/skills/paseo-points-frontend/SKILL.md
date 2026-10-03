@@ -86,7 +86,9 @@ const submit = async (e: FormEvent) => {
 - Phones: `AppShell` swaps the sidebar for a top bar and a bottom tab bar (max 5 tabs; mark `primary` items, the
   rest go under "Más"). Wide tables use `className="table table-stack"` with `data-label` on each cell so they become
   cards; forms put their buttons in `.form-actions`; sticky bottoms must clear `var(--tabbar-h)`.
-- Identifying a customer or a canje always goes through `<ScanOrCode kind="customer" | "redemption">`: live camera
+- There is one QR per customer (their card). Canjes and birthday benefits have no QR of their own: staff scan the card
+  in Registrar compra and `domain/checkout.ts` (`quoteCheckout`) lists and applies them. Identifying a customer always
+  goes through `<ScanOrCode kind="customer">` (spaces use `kind="space"`): live camera
   scan (no gallery uploads) or the short code. The customer code is 6 digits shown under the QR on the card
   (`/api/me/qr-token` returns `token` for the QR and `code`); never show the `PP1.…` token in the UI.
 - The camera needs https outside localhost: `npm run dev` serves https with a self-signed certificate (open

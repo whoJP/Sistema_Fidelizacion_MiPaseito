@@ -115,23 +115,25 @@ export function BirthdayCard({ db, user }: { db: Database; user: User }) {
       {gifts.length > 0 && (
         <div className="bday-gifts">
           <h3>
-            <Store size={16} aria-hidden /> Regalos de los locales
+            <Store size={16} aria-hidden /> Beneficios en los locales
           </h3>
-          <p className="muted small">Compra hoy y muestra tu tarjeta en caja</p>
+          <p className="muted small">Muestra tu tarjeta al pagar: se aplican solos, una vez por local</p>
           <ul>
             {gifts.map((g) => (
               <li key={g.business.id} className={claimed.has(g.business.id) ? 'is-claimed' : ''}>
                 <span className="bday-gift-name">{g.business.name}</span>
-                <span className="bday-gift-title">
-                  {claimed.has(g.business.id) ? (
-                    <>
-                      <Check size={14} aria-hidden /> Recibido
-                    </>
-                  ) : (
-                    g.title
-                  )}
-                </span>
-                {g.description && !claimed.has(g.business.id) && <small>{g.description}</small>}
+                {claimed.has(g.business.id) ? (
+                  <span className="bday-gift-title">
+                    <Check size={14} aria-hidden /> Recibido
+                  </span>
+                ) : (
+                  g.perks.map((p) => (
+                    <span key={p.id} className="bday-gift-title">
+                      {p.title}
+                      {(p.condition || p.description) && <small>{[p.condition, p.description].filter(Boolean).join(' · ')}</small>}
+                    </span>
+                  ))
+                )}
               </li>
             ))}
           </ul>

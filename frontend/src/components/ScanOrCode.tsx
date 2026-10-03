@@ -3,7 +3,7 @@ import { Keyboard, ScanLine } from 'lucide-react'
 import { LIMITS } from '../domain/validation'
 import { QrReader } from './QrReader'
 
-type Kind = 'customer' | 'redemption' | 'space'
+type Kind = 'customer' | 'space'
 
 const SPEC: Record<Kind, { label: string; hint: string; placeholder: string; length: number; submit: string }> = {
   customer: {
@@ -12,13 +12,6 @@ const SPEC: Record<Kind, { label: string; hint: string; placeholder: string; len
     placeholder: '000 000',
     length: 6,
     submit: 'Buscar cliente',
-  },
-  redemption: {
-    label: 'Código del cliente o del canje',
-    hint: '6 números de su tarjeta o código del canje',
-    placeholder: '000 000 o XXXXX-XXXXX',
-    length: 10,
-    submit: 'Buscar',
   },
   space: {
     label: 'Código del espacio',
@@ -34,15 +27,7 @@ const clean = (kind: Kind, raw: string) =>
     ? raw.replace(/\D/g, '').slice(0, 6)
     : raw.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, SPEC[kind].length)
 
-/** On the redemption counter the customer's 6-digit card code works too. */
-const isCardCode = (kind: Kind, value: string) => kind === 'redemption' && /^\d{6}$/.test(value)
-
-const pretty = (kind: Kind, value: string) =>
-  kind === 'customer' || isCardCode(kind, value)
-    ? value.replace(/^(\d{3})(\d)/, '$1 $2')
-    : kind === 'redemption'
-      ? value.replace(/^([A-Z0-9]{5})([A-Z0-9])/, '$1-$2')
-      : value
+const pretty = (kind: Kind, value: string) => (kind === 'customer' ? value.replace(/^(\d{3})(\d)/, '$1 $2') : value)
 
 /**
  * Two ways to identify something at the counter: scan its QR with the camera (default) or type its short code.
@@ -62,7 +47,7 @@ export function ScanOrCode({
   const [mode, setMode] = useState<'scan' | 'code'>('scan')
   const [value, setValue] = useState('')
   const spec = SPEC[kind]
-  const ready = value.length === spec.length || isCardCode(kind, value)
+  const ready = value.length === spec.length
 
   const submit = async (e: FormEvent) => {
     e.preventDefault()

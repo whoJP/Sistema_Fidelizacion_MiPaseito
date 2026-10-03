@@ -83,10 +83,29 @@ function previewTitle(db: Database, businessId: number, d: Draft): string {
   return [rewardTitle(db, preview), ...rewardConditions(db, preview)].join('. ')
 }
 
+const rewardData = (r: Reward, status: RewardStatus) => ({
+  businessId: r.businessId,
+  type: r.type,
+  discountPercent: r.discountPercent,
+  discountAmount: r.discountAmount,
+  catalogItemId: r.catalogItemId,
+  quantity: r.quantity,
+  minimumPurchase: r.minimumPurchase,
+  description: r.description,
+  pointsCost: r.pointsCost,
+  minimumTierId: r.minimumTierId,
+  stock: r.stock,
+  startsAt: r.startsAt,
+  endsAt: r.endsAt,
+  status,
+})
+
 export function MerchantRewardsPage() {
   const db = useDb()
-  const { business } = useWorkplace()
+  const { business, membership } = useWorkplace()
+  const isManager = membership.role === 'MANAGER'
   const [draft, setDraft] = useState<Draft | null>(null)
+  const activeCanjes = (rewardId: number) => db.redemptions.filter((x) => x.rewardId === rewardId && x.status === 'PENDING').length
   const rewards = db.rewards.filter((r) => r.businessId === business.id && r.deletedAt === null).sort((a, b) => a.pointsCost - b.pointsCost)
   const products = db.catalogItems.filter((i) => i.businessId === business.id && i.deletedAt === null)
   const editing = (draft?.id && db.rewards.find((r) => r.id === draft.id)) || null
@@ -109,6 +128,18 @@ export function MerchantRewardsPage() {
       tone: 'danger',
     })
     if (ok) void vanish(row, () => run('softDelete', { table: 'rewards', id: r.id }, 'Recompensa eliminada'))
+  }
+
+  const setStatus = async (r: Reward, status: RewardStatus) => {
+    if (status !== 'ACTIVE') {
+      const ok = await confirmDialog({
+        title: `¿Desactivar "${rewardTitle(db, r)}"?`,
+        message: 'Los clientes dejan de verla. Los canjes ya hechos siguen activos en sus tarjetas.',
+        confirmLabel: 'Desactivar',
+      })
+      if (!ok) return
+    }
+    await run('saveReward', { id: r.id, data: rewardData(r, status) }, status === 'ACTIVE' ? 'Recompensa activada' : 'Recompensa desactivada')
   }
 
   const save = async (e: FormEvent) => {
@@ -143,17 +174,23 @@ export function MerchantRewardsPage() {
   return (
     <div className="page">
       <PageHeader
-        title="Recompensas"
-        subtitle={`Canjeables en ${business.name}`}
+        title="Canje"
+        subtitle={`Recompensas que los clientes canjean con sus puntos en ${business.name}`}
         actions={
-          <button className="btn btn-primary" onClick={() => setDraft(toDraft())}>
-            <Plus size={16} /> Nueva recompensa
-          </button>
+          isManager && (
+            <button className="btn btn-primary" onClick={() => setDraft(toDraft())}>
+              <Plus size={16} /> Nueva recompensa
+            </button>
+          )
         }
       />
+      <p className="muted small page-note">
+        Cuando un cliente canjea, el canje queda activo en su tarjeta. Al escanearla en <b>Registrar compra</b> verás sus canjes para aplicarlos o
+        cancelarlos.
+      </p>
       <Card>
         {rewards.length === 0 ? (
-          <Empty>Aún no tienes recompensas.</Empty>
+          <Empty>{isManager ? 'Aún no tienes recompensas.' : 'Tu local aún no tiene recompensas. Las configura el encargado.'}</Empty>
         ) : (
           <div className="table-wrap">
             <table className="table table-stack">
@@ -166,7 +203,7 @@ export function MerchantRewardsPage() {
                   <th className="num">Canjes</th>
                   <th>Vigencia</th>
                   <th>Estado</th>
-                  <th />
+                  {isManager && <th />}
                 </tr>
               </thead>
               <tbody>
@@ -189,6 +226,7 @@ export function MerchantRewardsPage() {
                     <td data-label="Nivel mínimo">{db.tiers.find((t) => t.id === r.minimumTierId)?.name ?? 'Cualquiera'}</td>
                     <td className="num" data-label="Canjes">
                       {r.stock === null ? `${rewardRedeemedCount(db, r.id)}, sin límite` : `${rewardRedeemedCount(db, r.id)} de ${r.stock}`}
+                      {activeCanjes(r.id) > 0 && <div className="muted small">{formatInt(activeCanjes(r.id))} por entregar</div>}
                     </td>
                     <td className="small" data-label="Vigencia">
                       {r.startsAt && r.endsAt
@@ -202,14 +240,25 @@ export function MerchantRewardsPage() {
                     <td data-label="Estado">
                       <StatusBadge status={r.status} />
                     </td>
-                    <td className="row end gap">
-                      <button className="btn btn-ghost btn-sm" onClick={() => setDraft(toDraft(r))}>
-                        Editar
-                      </button>
-                      <button className="btn btn-ghost btn-sm danger" onClick={(e) => remove(r, e.currentTarget)}>
-                        Eliminar
-                      </button>
-                    </td>
+                    {isManager && (
+                      <td className="row end gap">
+                        <button className="btn btn-ghost btn-sm" onClick={() => setDraft(toDraft(r))}>
+                          Editar
+                        </button>
+                        {r.status === 'ACTIVE' ? (
+                          <button className="btn btn-ghost btn-sm" onClick={() => void setStatus(r, 'INACTIVE')}>
+                            Desactivar
+                          </button>
+                        ) : (
+                          <button className="btn btn-ghost btn-sm" onClick={() => void setStatus(r, 'ACTIVE')}>
+                            Activar
+                          </button>
+                        )}
+                        <button className="btn btn-ghost btn-sm danger" onClick={(e) => remove(r, e.currentTarget)}>
+                          Eliminar
+                        </button>
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>

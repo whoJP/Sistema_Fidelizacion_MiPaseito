@@ -3,7 +3,7 @@
 // Amounts in bolivianos (Bs); reference rule from the hackathon brief: Bs 1 = 1 punto.
 import { addMonthsKey, startOfLocalDay, todayKey } from '../domain/time'
 import type { Badge, BirthdayPerk, Business, CatalogItem, Category, Database, DayOfWeek, Reward, SpinPrize, User } from '../types/domain'
-import { checkInEvent, checkInSpace, createRedemption, registerPurchase, validateRedemption } from './actions'
+import { checkInEvent, checkInSpace, createRedemption, registerPurchase } from './actions'
 
 const DAYS: DayOfWeek[] = ['MONDAY', 'TUESDAY', 'WEDNESDAY', 'THURSDAY', 'FRIDAY', 'SATURDAY', 'SUNDAY']
 
@@ -220,45 +220,46 @@ export function buildDemoDatabase(): Database {
     })
   }
 
-  const item = (businessId: number, name: string, price: number, description: string | null = null): CatalogItem => ({
+  const item = (businessId: number, name: string, price: number, category: string | null, description: string | null): CatalogItem => ({
     id: db.catalogItems.length + 1,
     businessId,
     name,
     description,
+    category,
     price,
     isAvailable: true,
     deletedAt: null,
   })
   ;(
     [
-      [1, 'Capuchino', 22, 'Doble shot de espresso con leche texturizada'],
-      [1, 'Gelato 2 bolas', 25, null],
-      [1, 'Torta de chocolate', 28, null],
-      [2, 'Pizza personal', 45, null],
-      [2, 'Pizza familiar napolitana', 110, 'Tomate, mozzarella, ajo y orégano'],
-      [3, 'Polera básica', 189, null],
-      [3, 'Jeans clásicos', 399, null],
-      [4, 'Zapatillas Nike Air', 890, null],
-      [4, 'Zapatillas Adidas Running', 790, null],
-      [5, 'Anillo de plata 950', 450, null],
-      [5, 'Reloj de acero', 1200, null],
-      [6, 'Protector solar FPS 50', 120, null],
-      [6, 'Vitamina C x 30', 65, null],
-      [7, 'Classic Roll', 32, 'El clásico rollo de canela con frosting'],
-      [7, 'MiniBon', 20, null],
-      [8, 'Lentes de sol', 650, null],
-      [8, 'Examen visual', 150, 'Incluye medición de vista y asesoría'],
-      [9, 'Sub de 30 cm', 58, null],
-      [9, 'Sub de 15 cm', 38, null],
-      [10, 'Combo 12 piezas', 75, null],
-      [11, 'Pique macho', 95, 'Clásico cochabambino para compartir'],
-      [11, 'Silpancho', 70, null],
-      [12, 'Pijama de algodón', 180, null],
-      [12, 'Body splash', 90, null],
-      [13, 'Mochila urbana', 420, null],
-      [14, 'Botines de cuero', 750, null],
+      [1, 'Capuchino', 22, 'Cafés', 'Doble shot de espresso con leche texturizada'],
+      [1, 'Gelato 2 bolas', 25, 'Postres', null],
+      [1, 'Torta de chocolate', 28, 'Postres', null],
+      [2, 'Pizza personal', 45, 'Pizzas', null],
+      [2, 'Pizza familiar napolitana', 110, 'Pizzas', 'Tomate, mozzarella, ajo y orégano'],
+      [3, 'Polera básica', 189, 'Poleras', null],
+      [3, 'Jeans clásicos', 399, 'Jeans', null],
+      [4, 'Zapatillas Nike Air', 890, 'Zapatillas', null],
+      [4, 'Zapatillas Adidas Running', 790, 'Zapatillas', null],
+      [5, 'Anillo de plata 950', 450, 'Joyas', null],
+      [5, 'Reloj de acero', 1200, 'Relojes', null],
+      [6, 'Protector solar FPS 50', 120, 'Cuidado de la piel', null],
+      [6, 'Vitamina C x 30', 65, 'Vitaminas', null],
+      [7, 'Classic Roll', 32, 'Rollos', 'El clásico rollo de canela con frosting'],
+      [7, 'MiniBon', 20, 'Rollos', null],
+      [8, 'Lentes de sol', 650, 'Lentes', null],
+      [8, 'Examen visual', 150, 'Servicios', 'Incluye medición de vista y asesoría'],
+      [9, 'Sub de 30 cm', 58, 'Subs', null],
+      [9, 'Sub de 15 cm', 38, 'Subs', null],
+      [10, 'Combo 12 piezas', 75, 'Combos', null],
+      [11, 'Pique macho', 95, 'Platos', 'Clásico cochabambino para compartir'],
+      [11, 'Silpancho', 70, 'Platos', null],
+      [12, 'Pijama de algodón', 180, 'Pijamas', null],
+      [12, 'Body splash', 90, 'Fragancias', null],
+      [13, 'Mochila urbana', 420, 'Mochilas', null],
+      [14, 'Botines de cuero', 750, 'Calzado', null],
     ] as const
-  ).forEach(([businessId, name, price, description]) => db.catalogItems.push(item(businessId, name, price, description)))
+  ).forEach(([businessId, name, price, category, description]) => db.catalogItems.push(item(businessId, name, price, category, description)))
 
   db.tiers.push(
     { id: 1, name: 'Bronce', minimumStatus: 0, pointsMultiplier: 1, sortOrder: 1, isActive: true, icon: 'shield' },
@@ -459,7 +460,7 @@ export function buildDemoDatabase(): Database {
 
   const staffFor = (businessId: number) =>
     db.businessMembers.find((m) => m.businessId === businessId && m.status === 'ACTIVE')!.userId
-  const buy = (customerId: number, businessId: number, products: [name: string, quantity: number][], when: Date) =>
+  const buy = (customerId: number, businessId: number, products: [name: string, quantity: number][], when: Date, redemptionIds: number[] = []) =>
     registerPurchase(
       db,
       {
@@ -467,6 +468,7 @@ export function buildDemoDatabase(): Database {
         businessId,
         performedById: staffFor(businessId),
         items: products.map(([name, quantity]) => ({ catalogItemId: catalogId(businessId, name), quantity })),
+        redemptionIds,
       },
       when,
     )
@@ -488,7 +490,7 @@ export function buildDemoDatabase(): Database {
   buy(5, 3, [['Polera básica', 1], ['Jeans clásicos', 1]], new Date(daysAgo(8).getTime() + 3 * 60 * 1000))
 
   const redeemed = createRedemption(db, 2, 2, daysAgo(10))
-  validateRedemption(db, { token: redeemed.verificationToken, businessId: 7, staffId: staffFor(7) }, new Date(daysAgo(10).getTime() + 4 * 60_000))
+  buy(2, 7, [['MiniBon', 1]], new Date(daysAgo(10).getTime() + 4 * 60_000), [redeemed.id])
   createRedemption(db, 2, 1, new Date(Date.now() - 2 * 60_000))
 
   checkInEvent(db, { eventId: 1, customerId: 2 }, 1, new Date('2026-08-01T17:30:00-04:00'))
@@ -518,15 +520,34 @@ export function buildDemoDatabase(): Database {
   prize(6, { type: 'REWARD', rewardId: 1, weight: 7, stock: 50, validDays: 5 })
   prize(7, { type: 'EXTRA_SPIN', weight: 5 })
 
-  // Birthday gift each business gives every verified birthday customer with a purchase that day.
+  // Birthday benefits each business applies at the counter when it scans a verified birthday customer.
   const perk = (businessId: number, fields: Partial<BirthdayPerk> & Pick<BirthdayPerk, 'type'>) =>
-    db.birthdayPerks.push({ businessId, discountPercent: null, discountAmount: null, catalogItemId: null, quantity: 1, description: null, isActive: true, updatedAt: created, ...fields })
-  perk(1, { type: 'FREE_PRODUCT', catalogItemId: catalogId(1, 'Gelato 2 bolas') })
-  perk(2, { type: 'FREE_PRODUCT', catalogItemId: catalogId(2, 'Pizza personal') })
-  perk(3, { type: 'PERCENT_DISCOUNT', discountPercent: 50, description: 'En una prenda a elección.' })
-  perk(4, { type: 'PERCENT_DISCOUNT', discountPercent: 20 })
-  perk(7, { type: 'FREE_PRODUCT', catalogItemId: catalogId(7, 'MiniBon') })
-  perk(11, { type: 'AMOUNT_DISCOUNT', discountAmount: 50, description: 'En consumos desde Bs 150.' })
+    db.birthdayPerks.push({
+      id: db.birthdayPerks.length + 1,
+      businessId,
+      discountPercent: null,
+      discountAmount: null,
+      catalogItemId: null,
+      quantity: 1,
+      giftCondition: null,
+      minimumPurchase: null,
+      requiredItemId: null,
+      discountScope: null,
+      targetItemId: null,
+      targetCategory: null,
+      description: null,
+      isActive: true,
+      updatedAt: created,
+      ...fields,
+    })
+  perk(1, { type: 'FREE_PRODUCT', catalogItemId: catalogId(1, 'Gelato 2 bolas'), giftCondition: 'MIN_PURCHASE', minimumPurchase: 40 })
+  perk(1, { type: 'PERCENT_DISCOUNT', discountPercent: 50, discountScope: 'CATEGORY', targetCategory: 'Cafés' })
+  perk(2, { type: 'FREE_PRODUCT', catalogItemId: catalogId(2, 'Pizza personal'), giftCondition: 'PRODUCT', requiredItemId: catalogId(2, 'Pizza familiar napolitana') })
+  perk(3, { type: 'PERCENT_DISCOUNT', discountPercent: 50, discountScope: 'CATEGORY', targetCategory: 'Poleras' })
+  perk(3, { type: 'AMOUNT_DISCOUNT', discountAmount: 100, discountScope: 'PRODUCT', targetItemId: catalogId(3, 'Jeans clásicos') })
+  perk(4, { type: 'PERCENT_DISCOUNT', discountPercent: 20, discountScope: 'ALL' })
+  perk(7, { type: 'FREE_PRODUCT', catalogItemId: catalogId(7, 'MiniBon'), giftCondition: 'MIN_PURCHASE', minimumPurchase: 30 })
+  perk(11, { type: 'AMOUNT_DISCOUNT', discountAmount: 30, discountScope: 'PRODUCT', targetItemId: catalogId(11, 'Pique macho') })
 
   return db
 }

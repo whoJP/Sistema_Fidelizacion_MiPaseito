@@ -18,7 +18,7 @@ export const SETTING_DEFAULTS = {
   STATUS_BASE_RATE: '1',
   DISCOVERY_STATUS_BONUS: '50',
   STREAK_STATUS_BONUS: '10',
-  REDEMPTION_EXPIRATION_MINUTES: '15',
+  REDEMPTION_EXPIRATION_DAYS: '7',
   ABNORMAL_AMOUNT_THRESHOLD: '5000',
   WELCOME_STATUS_BONUS: '225',
   VISIT_CARD_SIZE: '10',
@@ -162,6 +162,12 @@ const withinWindow = (now: Date, startsAt: string | null, endsAt: string | null)
 export function rewardRedeemedCount(db: Database, rewardId: number): number {
   return db.redemptions.filter((r) => r.rewardId === rewardId && r.status !== 'CANCELLED' && r.status !== 'EXPIRED')
     .length
+}
+
+/** Point canjes stay on the card for some days; free gifts (ruleta, birthday) carry their own `expiresAt`. */
+export function redemptionExpiresAt(db: Database, createdAt: string, expiresAt: string | null = null): Date {
+  if (expiresAt) return new Date(expiresAt)
+  return new Date(new Date(createdAt).getTime() + getSetting(db, 'REDEMPTION_EXPIRATION_DAYS') * 86_400_000)
 }
 
 export function rewardRemainingStock(db: Database, reward: Reward): number | null {

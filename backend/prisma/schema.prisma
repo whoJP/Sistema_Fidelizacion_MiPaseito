@@ -211,6 +211,17 @@ enum KycStatus {
   REJECTED
 }
 
+enum BirthdayGiftCondition {
+  MIN_PURCHASE
+  PRODUCT
+}
+
+enum BirthdayDiscountScope {
+  ALL
+  PRODUCT
+  CATEGORY
+}
+
 // ==================================================
 // USERS & BUSINESSES
 // ==================================================
@@ -236,6 +247,7 @@ model User {
   statusMovements        StatusMovement[]
   redemptions            Redemption[]          @relation("RedemptionUser")
   validatedRedemptions   Redemption[]          @relation("RedemptionValidatedBy")
+  cancelledRedemptions   Redemption[]          @relation("RedemptionCancelledBy")
   createdRewards         Reward[]
   createdMissions        Mission[]
   createdPromotions      Promotion[]           @relation("PromotionCreatedBy")
@@ -285,7 +297,7 @@ model Business {
   missions       MissionBusiness[]
   promotions     PromotionBusiness[]
   discoveries    BusinessDiscovery[]
-  birthdayPerk   BirthdayPerk?
+  birthdayPerks  BirthdayPerk[]
   birthdayClaims BirthdayClaim[]
 }
 
@@ -352,14 +364,18 @@ model CatalogItem {
   businessId  Int
   name        String    @db.VarChar(150)
   description String?   @db.Text
+  /// Free-text group inside the business catalog (e.g. "Poleras"), used by birthday discounts.
+  category    String?   @db.VarChar(80)
   price       Decimal   @db.Decimal(10, 2)
   isAvailable Boolean   @default(true)
   deletedAt   DateTime?
 
-  business         Business          @relation(fields: [businessId], references: [id], onDelete: Restrict)
-  rewards          Reward[]
-  transactionItems TransactionItem[]
-  birthdayPerks    BirthdayPerk[]
+  business             Business          @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  rewards              Reward[]
+  transactionItems     TransactionItem[]
+  birthdayGifts        BirthdayPerk[]    @relation("BirthdayPerkGift")
+  birthdayTargets      BirthdayPerk[]    @relation("BirthdayPerkTarget")
+  birthdayRequirements BirthdayPerk[]    @relation("BirthdayPerkRequired")
 
   @@index([businessId])
 }
@@ -386,7 +402,10 @@ model Transaction {
   customerId    Int
   businessId    Int
   performedById Int
+  /// Paid total after discounts; points are computed on it.
   amount        Decimal           @db.Decimal(10, 2)
+  /// Bs taken off the products' total by canjes and birthday benefits.
+  discount      Decimal           @default(0) @db.Decimal(10, 2)
   status        TransactionStatus @default(COMPLETED)
   createdAt     DateTime          @default(now())
 
@@ -401,6 +420,7 @@ model Transaction {
   cancellationRequests CancellationRequest[]
   unlockedSpin         Spin?
   birthdayClaims       BirthdayClaim[]
+  redemptions          Redemption[]
 
   @@index([customerId])
   @@index([businessId])
@@ -552,11 +572,21 @@ model Redemption {
   expiresAt         DateTime?
   createdAt         DateTime         @default(now())
   redeemedAt        DateTime?
+  /// Purchase where the canje was used (null when a free product was handed over without a purchase).
+  transactionId     Int?
+  /// Bs taken off that purchase by this canje.
+  discount          Decimal?         @db.Decimal(10, 2)
+  /// Business staff cancelled it: the points go back and only the Paseo admin sees the reason.
+  cancelReason      String?          @db.Text
+  cancelledById     Int?
+  cancelledAt       DateTime?
 
-  user        User      @relation("RedemptionUser", fields: [userId], references: [id], onDelete: Restrict)
-  reward      Reward    @relation(fields: [rewardId], references: [id], onDelete: Restrict)
-  business    Business? @relation(fields: [businessId], references: [id], onDelete: Restrict)
-  validatedBy User?     @relation("RedemptionValidatedBy", fields: [validatedById], references: [id], onDelete: Restrict)
+  user        User         @relation("RedemptionUser", fields: [userId], references: [id], onDelete: Restrict)
+  reward      Reward       @relation(fields: [rewardId], references: [id], onDelete: Restrict)
+  business    Business?    @relation(fields: [businessId], references: [id], onDelete: Restrict)
+  validatedBy User?        @relation("RedemptionValidatedBy", fields: [validatedById], references: [id], onDelete: Restrict)
+  transaction Transaction? @relation(fields: [transactionId], references: [id], onDelete: Restrict)
+  cancelledBy User?        @relation("RedemptionCancelledBy", fields: [cancelledById], references: [id], onDelete: Restrict)
 
   pointMovements PointMovement[]
   fraudAlerts    FraudAlert[]
@@ -566,6 +596,8 @@ model Redemption {
   @@index([rewardId])
   @@index([businessId])
   @@index([validatedById])
+  @@index([transactionId])
+  @@index([cancelledById])
 }
 
 // ==================================================
@@ -963,25 +995,40 @@ model KycDocument {
   request KycRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
 }
 
-/// The standard gift a business gives every verified customer on their birthday, after a purchase there that day.
+/// A benefit a business gives verified customers on their birthday, applied to that day's purchase there.
+/// FREE_PRODUCT = gift (`catalogItemId`) when buying `minimumPurchase` Bs or `requiredItemId`.
+/// PERCENT_DISCOUNT / AMOUNT_DISCOUNT = discount on the whole purchase, on one `targetItemId` or on one product of
+/// `targetCategory` (CatalogItem.category), with no minimum.
 model BirthdayPerk {
-  businessId      Int        @id
+  id              Int                    @id @default(autoincrement())
+  businessId      Int
   type            RewardType
   discountPercent Int?
-  discountAmount  Decimal?   @db.Decimal(10, 2)
+  discountAmount  Decimal?               @db.Decimal(10, 2)
   catalogItemId   Int?
-  quantity        Int        @default(1)
-  description     String?    @db.Text
-  isActive        Boolean    @default(true)
-  updatedAt       DateTime   @updatedAt
+  quantity        Int                    @default(1)
+  giftCondition   BirthdayGiftCondition?
+  minimumPurchase Decimal?               @db.Decimal(10, 2)
+  requiredItemId  Int?
+  discountScope   BirthdayDiscountScope?
+  targetItemId    Int?
+  targetCategory  String?                @db.VarChar(80)
+  description     String?                @db.Text
+  isActive        Boolean                @default(true)
+  updatedAt       DateTime               @updatedAt
 
-  business    Business     @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  catalogItem CatalogItem? @relation(fields: [catalogItemId], references: [id], onDelete: Restrict)
+  business     Business     @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  catalogItem  CatalogItem? @relation("BirthdayPerkGift", fields: [catalogItemId], references: [id], onDelete: Restrict)
+  requiredItem CatalogItem? @relation("BirthdayPerkRequired", fields: [requiredItemId], references: [id], onDelete: Restrict)
+  targetItem   CatalogItem? @relation("BirthdayPerkTarget", fields: [targetItemId], references: [id], onDelete: Restrict)
 
+  @@index([businessId])
   @@index([catalogItemId])
+  @@index([requiredItemId])
+  @@index([targetItemId])
 }
 
-/// A birthday gift delivered at a business: once per customer, business and year, tied to that day's purchase.
+/// Birthday benefits used at a business: once per customer, business and year, tied to the purchase they applied to.
 model BirthdayClaim {
   id            Int      @id @default(autoincrement())
   userId        Int
@@ -989,8 +1036,10 @@ model BirthdayClaim {
   year          Int
   transactionId Int
   validatedById Int
-  /// Gift as it was described when delivered.
+  /// Benefits as they were described when applied.
   perkTitle     String   @db.VarChar(255)
+  /// Bs taken off the purchase by the birthday discounts.
+  discount      Decimal  @default(0) @db.Decimal(10, 2)
   createdAt     DateTime @default(now())
 
   user        User        @relation("BirthdayClaimUser", fields: [userId], references: [id], onDelete: Restrict)

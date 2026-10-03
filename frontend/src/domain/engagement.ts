@@ -11,6 +11,7 @@ import {
   statusTotal,
   visibleRewards,
 } from './loyalty'
+import { birthdayPerkCondition, birthdayPerkTitle, birthdayPerksOf } from './checkout'
 import { addDaysKey, addMonthsKey, daysBetweenKeys, endOfLocalDay, localDateKey, localHour, localWeekday, todayKey } from './time'
 
 const isLive = <T extends { deletedAt: string | null }>(row: T) => row.deletedAt === null
@@ -320,13 +321,20 @@ export function birthdayRewardOptions(db: Database, now = new Date()): Reward[] 
   })
 }
 
-/** Businesses with an active birthday gift. */
-export function birthdayGifts(db: Database): { business: Business; title: string; description: string | null }[] {
-  return db.birthdayPerks.flatMap((perk) => {
-    const business = db.businesses.find((b) => b.id === perk.businessId)
-    if (!perk.isActive || !business || !isLive(business) || business.status !== 'ACTIVE') return []
-    return [{ business, title: rewardTitle(db, perk), description: perk.description }]
-  })
+/** Businesses with active birthday benefits, each with what it gives and on which condition. */
+export function birthdayGifts(db: Database): { business: Business; perks: { id: number; title: string; condition: string | null; description: string | null }[] }[] {
+  return db.businesses
+    .filter((b) => isLive(b) && b.status === 'ACTIVE')
+    .flatMap((business) => {
+      const perks = birthdayPerksOf(db, business.id).map((perk) => ({
+        id: perk.id,
+        title: birthdayPerkTitle(db, perk),
+        condition: birthdayPerkCondition(db, perk),
+        description: perk.description,
+      }))
+      return perks.length ? [{ business, perks }] : []
+    })
+    .sort((a, b) => a.business.name.localeCompare(b.business.name, 'es'))
 }
 
 // ---------- Consumption profile ----------

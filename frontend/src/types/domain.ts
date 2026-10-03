@@ -67,6 +67,8 @@ export type SpinSource = 'DAILY' | 'EXTRA' | 'FREE'
 export type SpinPrizeType = 'POINTS' | 'MULTIPLIER' | 'REWARD' | 'EXTRA_SPIN'
 export type SpinPrizeStatus = 'ACTIVE' | 'INACTIVE'
 export type KycStatus = 'PENDING' | 'APPROVED' | 'REJECTED'
+export type BirthdayGiftCondition = 'MIN_PURCHASE' | 'PRODUCT'
+export type BirthdayDiscountScope = 'ALL' | 'PRODUCT' | 'CATEGORY'
 
 export interface User {
   id: number
@@ -133,6 +135,8 @@ export interface CatalogItem {
   businessId: number
   name: string
   description: string | null
+  /** Free-text group inside the business catalog (e.g. "Poleras"). */
+  category: string | null
   price: number
   isAvailable: boolean
   deletedAt: string | null
@@ -155,7 +159,10 @@ export interface Transaction {
   customerId: number
   businessId: number
   performedById: number
+  /** Paid total after discounts; points are computed on it. */
   amount: number
+  /** Bs taken off the products' total by canjes and birthday benefits. */
+  discount: number
   status: TransactionStatus
   createdAt: string
 }
@@ -246,11 +253,19 @@ export interface Redemption {
   pointsSpent: number
   verificationToken: string
   status: RedemptionStatus
-  /** POINTS: code valid for minutes. PRIZE (ruleta) and BIRTHDAY are free and valid until `expiresAt`. */
+  /** POINTS: active on the card for some days. PRIZE (ruleta) and BIRTHDAY are free and valid until `expiresAt`. */
   origin: RedemptionOrigin
   expiresAt: string | null
   createdAt: string
   redeemedAt: string | null
+  /** Purchase where it was used (null when a free product was handed over without a purchase). */
+  transactionId: number | null
+  /** Bs taken off that purchase. */
+  discount: number | null
+  /** Why the business cancelled it. Only the admin snapshot carries it. */
+  cancelReason: string | null
+  cancelledById: number | null
+  cancelledAt: string | null
 }
 
 export interface Mission {
@@ -447,13 +462,25 @@ export interface KycRequest {
   reviewedAt: string | null
 }
 
+/**
+ * Birthday benefit of a business, applied to that day's purchase.
+ * FREE_PRODUCT: gift `catalogItemId` when buying `minimumPurchase` Bs (MIN_PURCHASE) or `requiredItemId` (PRODUCT).
+ * Discounts: on the whole purchase (ALL), one unit of `targetItemId` (PRODUCT) or one product of `targetCategory`.
+ */
 export interface BirthdayPerk {
+  id: number
   businessId: number
   type: RewardType
   discountPercent: number | null
   discountAmount: number | null
   catalogItemId: number | null
   quantity: number
+  giftCondition: BirthdayGiftCondition | null
+  minimumPurchase: number | null
+  requiredItemId: number | null
+  discountScope: BirthdayDiscountScope | null
+  targetItemId: number | null
+  targetCategory: string | null
   description: string | null
   isActive: boolean
   updatedAt: string
@@ -467,6 +494,7 @@ export interface BirthdayClaim {
   transactionId: number
   validatedById: number
   perkTitle: string
+  discount: number
   createdAt: string
 }
 

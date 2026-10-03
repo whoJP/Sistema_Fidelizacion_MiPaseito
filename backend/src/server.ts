@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto'
 import { existsSync } from 'node:fs'
 import path from 'node:path'
 import express, { type NextFunction, type Request, type Response } from 'express'
-import { createMerchant, redemptionExpiresAt, registerCustomer, submitKyc } from '../../frontend/src/data/actions.ts'
+import { createMerchant, registerCustomer, submitKyc } from '../../frontend/src/data/actions.ts'
 import { isCommandName } from '../../frontend/src/data/commands.ts'
 import { isBirthdayToday, tierGap } from '../../frontend/src/domain/engagement.ts'
 import { LIMITS, passwordError } from '../../frontend/src/domain/validation.ts'
@@ -239,18 +239,6 @@ app.post('/api/customers/identify', requireAuth, async (req, res) => {
   }
   if (!customer || customer.role !== 'CUSTOMER') throw new HttpError(404, 'Cliente no encontrado')
   if (customer.status !== 'ACTIVE') throw new HttpError(422, 'La cuenta del cliente está suspendida')
-  // Scanning the customer's QR proves they are at the counter, so staff get the codes of their coupons for this business.
-  const businessId = db.businessMembers.find((m) => m.userId === staff.id && m.status === 'ACTIVE')?.businessId
-  const now = Date.now()
-  const coupons = db.redemptions
-    .filter(
-      (r) =>
-        r.userId === customer.id &&
-        r.status === 'PENDING' &&
-        db.rewards.find((rw) => rw.id === r.rewardId)?.businessId === businessId &&
-        redemptionExpiresAt(db, r.createdAt, r.expiresAt).getTime() > now,
-    )
-    .map((r) => ({ redemptionId: r.id, token: r.verificationToken }))
   res.json({
     id: customer.id,
     firstName: customer.firstName,
@@ -258,7 +246,6 @@ app.post('/api/customers/identify', requireAuth, async (req, res) => {
     email: customer.email,
     nextTier: tierGap(db, customer.id),
     birthdayToday: isBirthdayToday(customer),
-    coupons,
   })
 })
 

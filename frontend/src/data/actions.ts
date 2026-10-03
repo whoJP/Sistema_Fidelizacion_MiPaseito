@@ -13,6 +13,7 @@ import {
   spinAvailability,
   visitCard,
 } from '../domain/engagement'
+import { birthdayPerksOf, birthdayUsedAt, quoteCheckout, sameCategory } from '../domain/checkout'
 import {
   earnedBadges,
   getSetting,
@@ -21,6 +22,7 @@ import {
   evaluateMission,
   pointsBalance,
   quotePurchase,
+  redemptionExpiresAt,
   rewardBlocker,
   rewardRedeemedCount,
   rewardTitle,
@@ -338,9 +340,42 @@ function purchaseLines(db: Database, businessId: number, lines: PurchaseLine[]) 
   })
 }
 
+/** A canje the customer can use right now at `businessId`, or a DomainError saying why not. */
+function usableRedemption(db: Database, r: Redemption, businessId: number, at: Date): Reward {
+  if (r.status === 'REDEEMED') throw new DomainError('Este canje ya fue usado')
+  if (r.status === 'CANCELLED') throw new DomainError('Este canje fue cancelado')
+  if (r.status === 'EXPIRED' || redemptionExpiresAt(db, r.createdAt, r.expiresAt).getTime() <= at.getTime()) {
+    throw new DomainError('Este canje venció')
+  }
+  const reward = db.rewards.find((x) => x.id === r.rewardId)
+  if (reward?.businessId !== businessId) {
+    const owner = db.businesses.find((b) => b.id === reward?.businessId)
+    throw new DomainError(`Este canje es de ${owner?.name ?? 'otro establecimiento'} y solo se usa allí`)
+  }
+  return reward
+}
+
+function markRedeemed(r: Redemption, input: { businessId: number; staffId: number; transactionId: number | null; discount: number | null }, at: Date) {
+  r.status = 'REDEEMED'
+  r.businessId = input.businessId
+  r.validatedById = input.staffId
+  r.redeemedAt = iso(at)
+  r.transactionId = input.transactionId
+  r.discount = input.discount
+}
+
 export function registerPurchase(
   db: Database,
-  input: { customerId: number; businessId: number; performedById: number; items: PurchaseLine[] },
+  input: {
+    customerId: number
+    businessId: number
+    performedById: number
+    items: PurchaseLine[]
+    /** Canjes of the customer used in this purchase. */
+    redemptionIds?: number[]
+    /** Apply the business birthday benefits (the customer's verified birthday is today). */
+    useBirthday?: boolean
+  },
   at = new Date(),
 ): PurchaseResult {
   const customer = db.users.find((u) => u.id === input.customerId && u.deletedAt === null && u.role === 'CUSTOMER')
@@ -352,9 +387,26 @@ export function registerPurchase(
     throw new DomainError('No perteneces a este establecimiento')
   }
   const lines = purchaseLines(db, input.businessId, input.items)
-  const amount = Math.round(lines.reduce((s, l) => s + l.item.price * l.quantity, 0) * 100) / 100
-  if (!(amount > 0)) throw new DomainError('El total de la compra debe ser mayor a 0')
-  if (amount > MAX_MONEY) throw new DomainError(`El total no puede superar ${formatMoney(MAX_MONEY)}`)
+
+  const redemptions = [...new Set(input.redemptionIds ?? [])].map((id) => {
+    const r = db.redemptions.find((x) => x.id === id && x.userId === customer.id)
+    if (!r) throw new DomainError('Canje no encontrado')
+    usableRedemption(db, r, input.businessId, at)
+    return r
+  })
+  const year = localYear(at)
+  if (input.useBirthday) {
+    if (!isBirthdayToday(customer, at)) throw new DomainError(`Hoy no es el cumpleaños verificado de ${customer.firstName}`)
+    if (birthdayUsedAt(db, customer.id, input.businessId, year)) {
+      throw new DomainError(`${customer.firstName} ya usó sus beneficios de cumpleaños aquí este año`)
+    }
+  }
+  const quote = quoteCheckout(db, { lines, redemptions, birthdayPerks: input.useBirthday ? birthdayPerksOf(db, input.businessId) : [] })
+  const blocked = quote.redemptions.find((b) => !b.applies)
+  if (blocked) throw new DomainError(`El canje «${blocked.title}» no aplica a esta compra: ${blocked.note}`)
+  if (!(quote.subtotal > 0)) throw new DomainError('El total de la compra debe ser mayor a 0')
+  if (quote.subtotal > MAX_MONEY) throw new DomainError(`El total no puede superar ${formatMoney(MAX_MONEY)}`)
+  const amount = quote.total
   const badgesBefore = earnedKeys(db, input.customerId)
 
   const tenMinutesAgo = at.getTime() - 10 * 60 * 1000
@@ -377,6 +429,7 @@ export function registerPurchase(
     businessId: input.businessId,
     performedById: input.performedById,
     amount,
+    discount: quote.discount,
     status: flagged ? 'FLAGGED' : 'COMPLETED',
     createdAt: iso(at),
   }
@@ -389,6 +442,26 @@ export function registerPurchase(
       quantity,
       unitPrice: item.price,
     })
+  }
+  for (const b of quote.redemptions) {
+    const discount = b.reward?.type === 'FREE_PRODUCT' ? null : b.discount
+    markRedeemed(b.redemption, { businessId: input.businessId, staffId: input.performedById, transactionId: transaction.id, discount }, at)
+  }
+  const birthday = quote.birthday.filter((b) => b.applies)
+  if (birthday.length > 0) {
+    const claim = {
+      id: nextId(db, 'birthdayClaims'),
+      userId: customer.id,
+      businessId: input.businessId,
+      year,
+      transactionId: transaction.id,
+      validatedById: input.performedById,
+      perkTitle: birthday.map((b) => b.title).join(' · ').slice(0, 255),
+      discount: Math.round(birthday.reduce((s, b) => s + b.discount, 0) * 100) / 100,
+      createdAt: iso(at),
+    }
+    db.birthdayClaims.push(claim)
+    audit(db, input.performedById, 'BIRTHDAY_PERK_CLAIMED', 'BirthdayClaim', claim.id, at)
   }
 
   if (duplicate) raiseAlert(db, 'DUPLICATE_TRANSACTION', 85, { transactionId: transaction.id }, at)
@@ -506,6 +579,20 @@ function reverseTransactionMovements(db: Database, tx: Transaction, at: Date) {
   addStatus(db, tx.customerId, 'ADJUSTMENT', -status, { transactionId: tx.id }, at)
 }
 
+/** Canjes used in a cancelled purchase go back to the customer's card; birthday benefits can be used again. */
+function releaseBenefits(db: Database, tx: Transaction) {
+  for (const r of db.redemptions) {
+    if (r.transactionId !== tx.id || r.status !== 'REDEEMED') continue
+    r.status = 'PENDING'
+    r.businessId = null
+    r.validatedById = null
+    r.redeemedAt = null
+    r.transactionId = null
+    r.discount = null
+  }
+  db.birthdayClaims = db.birthdayClaims.filter((c) => c.transactionId !== tx.id)
+}
+
 /** Cancels a purchase and takes back everything it granted. Returns the points and Status removed. */
 function voidTransaction(db: Database, tx: Transaction, at: Date): { points: number; status: number } {
   if (tx.status === 'CANCELLED') throw new DomainError('La compra ya está anulada')
@@ -514,6 +601,7 @@ function voidTransaction(db: Database, tx: Transaction, at: Date): { points: num
   const wasCompleted = tx.status === 'COMPLETED'
   if (wasCompleted) reverseTransactionMovements(db, tx, at)
   tx.status = 'CANCELLED'
+  releaseBenefits(db, tx)
   if (wasCompleted) revokeUnmetMissions(db, tx.customerId, at)
   for (const alert of db.fraudAlerts) {
     if (alert.transactionId === tx.id && alert.status === 'OPEN') alert.status = 'DISMISSED'
@@ -682,6 +770,11 @@ function issueRedemption(
     status: 'PENDING',
     createdAt: iso(at),
     redeemedAt: null,
+    transactionId: null,
+    discount: null,
+    cancelReason: null,
+    cancelledById: null,
+    cancelledAt: null,
   }
   db.redemptions.push(redemption)
   return redemption
@@ -705,54 +798,56 @@ export function expireRedemptions(db: Database, at = new Date()) {
   }
 }
 
-/** Point redemptions last a few minutes; free gifts (ruleta, birthday) carry their own `expiresAt`. */
-export function redemptionExpiresAt(db: Database, createdAt: string, expiresAt: string | null = null): Date {
-  if (expiresAt) return new Date(expiresAt)
-  return new Date(new Date(createdAt).getTime() + getSetting(db, 'REDEMPTION_EXPIRATION_MINUTES') * 60_000)
+/** Staff of the canje's business, who see it when they scan the customer's card. */
+function redemptionAtCounter(db: Database, redemptionId: number, staffId: number, at: Date) {
+  expireRedemptions(db, at)
+  const r = db.redemptions.find((x) => x.id === redemptionId)
+  if (!r) throw new DomainError('Canje no encontrado')
+  const reward = db.rewards.find((x) => x.id === r.rewardId)
+  if (!reward || !activeMembership(db, staffId, reward.businessId)) {
+    throw new DomainError('Solo el personal del local de este canje puede gestionarlo')
+  }
+  return { r, reward }
 }
 
-/** A second scan of a just-validated code by the same cashier within this time is treated as a repeat. */
-const REDEMPTION_REPEAT_MS = 2 * 60_000
+/** A free product canje handed over without a purchase. Discounts are applied while registering the purchase. */
+export function redeemWithoutPurchase(db: Database, redemptionId: number, staffId: number, at = new Date()) {
+  const { r, reward } = redemptionAtCounter(db, redemptionId, staffId, at)
+  usableRedemption(db, r, reward.businessId, at)
+  if (reward.type !== 'FREE_PRODUCT') throw new DomainError('Este canje es un descuento: aplícalo al registrar la compra')
+  markRedeemed(r, { businessId: reward.businessId, staffId, transactionId: null, discount: null }, at)
+  return r
+}
 
-export function validateRedemption(
-  db: Database,
-  input: { token: string; businessId: number; staffId: number },
-  at = new Date(),
-) {
-  if (!activeMembership(db, input.staffId, input.businessId)) {
-    throw new DomainError('No perteneces a este establecimiento')
-  }
-  expireRedemptions(db, at)
-  const compact = input.token.toUpperCase().replace(/[\s-]/g, '')
-  if (!/^[A-Z0-9]{10}$/.test(compact)) throw new DomainError('Código de canje inválido: son 10 letras y números, como ABCDE-23456')
-  const token = `${compact.slice(0, 5)}-${compact.slice(5)}`
-  const r = db.redemptions.find((x) => x.verificationToken === token)
-  if (!r) throw new DomainError('Código de canje no encontrado')
-  if (r.status === 'REDEEMED') {
-    // The same cashier scanning twice in a row is a repeat, not someone reusing the code.
-    const repeated =
-      r.businessId === input.businessId &&
-      r.validatedById === input.staffId &&
-      !!r.redeemedAt &&
-      at.getTime() - Date.parse(r.redeemedAt) <= REDEMPTION_REPEAT_MS
-    if (repeated) return { redemption: r, reused: false, repeated: true }
-    raiseAlert(db, 'REUSED_REDEMPTION', 90, { redemptionId: r.id }, at)
-    return { redemption: r, reused: true, repeated: false }
-  }
-  if (r.status === 'EXPIRED') throw new DomainError('El canje expiró')
-  if (r.status === 'CANCELLED') throw new DomainError('El canje fue cancelado')
+/**
+ * The business will not deliver a canje: it is cancelled, the points go back to the customer with a notice and the
+ * reason is kept for the Paseo admin only.
+ */
+export function rejectRedemption(db: Database, input: { redemptionId: number; reason: string }, staffId: number, at = new Date()) {
+  const { r, reward } = redemptionAtCounter(db, input.redemptionId, staffId, at)
+  if (r.status === 'CANCELLED') return r
+  if (r.status === 'EXPIRED') throw new DomainError('Este canje ya venció y sus puntos volvieron al cliente')
+  if (r.status !== 'PENDING') throw new DomainError('Este canje ya fue usado')
+  const reason = input.reason.trim()
+  if (reason.length < LIMITS.reasonMin) throw new DomainError(`Explica el motivo con al menos ${LIMITS.reasonMin} caracteres`)
+  if (reason.length > LIMITS.reason) throw new DomainError(`El motivo no puede superar los ${LIMITS.reason} caracteres`)
 
-  const reward = db.rewards.find((x) => x.id === r.rewardId)
-  if (reward?.businessId !== input.businessId) {
-    const owner = db.businesses.find((b) => b.id === reward?.businessId)
-    throw new DomainError(`Esta recompensa es de ${owner?.name ?? 'otro establecimiento'} y solo se canjea allí`)
-  }
-
-  r.status = 'REDEEMED'
-  r.businessId = input.businessId
-  r.validatedById = input.staffId
-  r.redeemedAt = iso(at)
-  return { redemption: r, reused: false, repeated: false }
+  r.status = 'CANCELLED'
+  r.cancelReason = sentence(reason)
+  r.cancelledById = staffId
+  r.cancelledAt = iso(at)
+  addPoints(db, r.userId, 'REVERSAL', r.pointsSpent, { redemptionId: r.id }, at)
+  const business = db.businesses.find((b) => b.id === reward.businessId)?.name ?? 'El local'
+  const what = `${business} no entregará tu canje «${rewardTitle(db, reward)}».`
+  notifyUser(
+    db,
+    r.userId,
+    `Canje cancelado en ${business}`,
+    r.pointsSpent > 0 ? `${what} Te devolvimos ${formatInt(r.pointsSpent)} ${r.pointsSpent === 1 ? 'punto' : 'puntos'}.` : what,
+    at,
+  )
+  audit(db, staffId, 'REDEMPTION_CANCELLED', 'Redemption', r.id, at)
+  return r
 }
 
 // ==================================================
@@ -1167,8 +1262,13 @@ export function saveCatalogItem(
     businessId,
     name: requiredName(data.name, 'El nombre', LIMITS.name),
     description: optionalText(data.description, 'La descripción', LIMITS.description),
+    category: data.category?.trim() ? requiredName(data.category, 'La categoría', LIMITS.catalogCategory) : null,
     price: Math.round(data.price * 100) / 100,
   }
+  const sameGroup = clean.category
+    ? db.catalogItems.find((i) => i.id !== id && i.businessId === businessId && i.deletedAt === null && sameCategory(i.category, clean.category))
+    : undefined
+  if (sameGroup?.category) clean.category = sameGroup.category
   if (db.catalogItems.some((i) => i.id !== id && i.businessId === businessId && i.deletedAt === null && sameName(i.name, clean.name))) {
     throw new DomainError('Ya tienes un producto con ese nombre')
   }
@@ -1294,6 +1394,9 @@ export function softDelete(db: Database, table: SoftDeletable, id: number, actor
     if (db.rewards.some((r) => r.catalogItemId === id && r.deletedAt === null && r.status !== 'INACTIVE')) {
       throw new DomainError('Este producto se usa en una recompensa. Desactívala o elimínala primero')
     }
+    if (db.birthdayPerks.some((p) => p.isActive && [p.catalogItemId, p.requiredItemId, p.targetItemId].includes(id))) {
+      throw new DomainError('Este producto se usa en un beneficio de cumpleaños. Pausa o elimina ese beneficio primero')
+    }
   } else if (table === 'rewards') {
     requireBusinessManager(db, actorId, (row as unknown as Reward).businessId)
   } else {
@@ -1382,7 +1485,7 @@ export const SETTING_RANGES: Record<SettingKey, [min: number, max: number, integ
   STATUS_BASE_RATE: [0, 100, false],
   DISCOVERY_STATUS_BONUS: [0, 10_000, true],
   STREAK_STATUS_BONUS: [0, 10_000, true],
-  REDEMPTION_EXPIRATION_MINUTES: [1, 1440, true],
+  REDEMPTION_EXPIRATION_DAYS: [1, 90, true],
   ABNORMAL_AMOUNT_THRESHOLD: [1, MAX_MONEY, false],
   WELCOME_STATUS_BONUS: [0, 5000, true],
   VISIT_CARD_SIZE: [4, 20, true],
@@ -1812,13 +1915,13 @@ export function grantBirthdayBonus(db: Database, user: User, at = new Date()): b
   if (already) return false
   const bonus = Math.max(1, Math.floor(getSetting(db, 'BIRTHDAY_BONUS_POINTS')))
   addPoints(db, user.id, 'BIRTHDAY', bonus, {}, at)
-  const gifts = db.birthdayPerks.filter((p) => p.isActive).length
+  const gifts = new Set(db.birthdayPerks.filter((p) => p.isActive).map((p) => p.businessId)).size
   notifyUser(
     db,
     user.id,
     `¡Feliz cumpleaños, ${user.firstName}!`,
     `Te regalamos ${formatInt(bonus)} puntos, un giro y una recompensa a elección.${
-      gifts ? ` Y ${gifts} ${gifts === 1 ? 'local tiene' : 'locales tienen'} un regalo con tu compra de hoy.` : ''
+      gifts ? ` Y ${gifts} ${gifts === 1 ? 'local tiene' : 'locales tienen'} beneficios para tu compra de hoy: muestra tu tarjeta en caja.` : ''
     }`,
     at,
   )
@@ -1840,87 +1943,98 @@ export function claimBirthdayReward(db: Database, userId: number, rewardId: numb
   )
 }
 
-export function saveBirthdayPerk(
-  db: Database,
-  businessId: number,
-  data: Pick<BirthdayPerk, 'type' | 'discountPercent' | 'discountAmount' | 'catalogItemId' | 'quantity' | 'description' | 'isActive'>,
-  actorId: number,
-  at = new Date(),
-) {
-  if (activeMembership(db, actorId, businessId)?.role !== 'MANAGER') {
-    throw new DomainError('Solo el encargado del establecimiento puede configurar el regalo de cumpleaños')
+export type BirthdayPerkData = Omit<BirthdayPerk, 'id' | 'businessId' | 'updatedAt'>
+
+/** Birthday benefits are configured by the business manager; a business can offer several. */
+export function saveBirthdayPerk(db: Database, id: number | null, businessId: number, data: BirthdayPerkData, actorId: number, at = new Date()) {
+  const existing = id !== null ? db.birthdayPerks.find((p) => p.id === id) : undefined
+  if (id !== null && !existing) throw new DomainError('Beneficio no encontrado')
+  const ownerId = existing?.businessId ?? businessId
+  if (activeMembership(db, actorId, ownerId)?.role !== 'MANAGER') {
+    throw new DomainError('Solo el encargado del establecimiento puede configurar los beneficios de cumpleaños')
   }
-  liveBusiness(db, businessId)
-  const clean: Omit<BirthdayPerk, 'businessId' | 'updatedAt'> = {
+  liveBusiness(db, ownerId)
+  const product = (itemId: number | null, label: string) => {
+    const item = db.catalogItems.find((i) => i.id === itemId && i.businessId === ownerId && i.deletedAt === null)
+    if (!item) throw new DomainError(label)
+    return item
+  }
+  const clean: BirthdayPerkData = {
     type: data.type,
     discountPercent: null,
     discountAmount: null,
     catalogItemId: null,
     quantity: 1,
-    description: data.description?.trim() || null,
+    giftCondition: null,
+    minimumPurchase: null,
+    requiredItemId: null,
+    discountScope: null,
+    targetItemId: null,
+    targetCategory: null,
+    description: optionalText(data.description, 'Las condiciones', LIMITS.note),
     isActive: data.isActive,
   }
-  check(textError(clean.description, 'Las condiciones', LIMITS.note))
   const type: RewardType = data.type
-  switch (type) {
-    case 'PERCENT_DISCOUNT':
+  if (type === 'FREE_PRODUCT') {
+    const gift = product(data.catalogItemId, 'Elige el producto de regalo de tu catálogo')
+    if (!Number.isInteger(data.quantity) || data.quantity < 1 || data.quantity > 5) throw new DomainError('La cantidad de regalo va de 1 a 5')
+    clean.catalogItemId = gift.id
+    clean.quantity = data.quantity
+    clean.giftCondition = data.giftCondition === 'PRODUCT' ? 'PRODUCT' : 'MIN_PURCHASE'
+    if (clean.giftCondition === 'PRODUCT') {
+      clean.requiredItemId = product(data.requiredItemId, 'Elige qué producto debe comprar para llevarse el regalo').id
+    } else {
+      if (data.minimumPurchase === null) throw new DomainError('Indica la compra mínima en Bs para llevarse el regalo')
+      check(moneyError(data.minimumPurchase, 'La compra mínima', { minExclusive: true }))
+      clean.minimumPurchase = Math.round(data.minimumPurchase * 100) / 100
+    }
+  } else {
+    if (type === 'PERCENT_DISCOUNT') {
       if (!Number.isInteger(data.discountPercent) || data.discountPercent! < 1 || data.discountPercent! > 100) {
         throw new DomainError('El porcentaje de descuento debe estar entre 1 y 100')
       }
       clean.discountPercent = data.discountPercent
-      break
-    case 'AMOUNT_DISCOUNT':
+    } else {
       if (data.discountAmount === null) throw new DomainError('Indica el descuento en Bs')
       check(moneyError(data.discountAmount, 'El descuento en Bs', { minExclusive: true }))
       clean.discountAmount = Math.round(data.discountAmount * 100) / 100
-      break
-    case 'FREE_PRODUCT': {
-      const item = db.catalogItems.find((i) => i.id === data.catalogItemId && i.businessId === businessId && i.deletedAt === null)
-      if (!item) throw new DomainError('Elige un producto del catálogo de tu establecimiento')
-      if (!Number.isInteger(data.quantity) || data.quantity < 1 || data.quantity > 5) throw new DomainError('La cantidad debe estar entre 1 y 5')
-      clean.catalogItemId = item.id
-      clean.quantity = data.quantity
-      break
+    }
+    clean.discountScope = data.discountScope === 'PRODUCT' || data.discountScope === 'CATEGORY' ? data.discountScope : 'ALL'
+    if (clean.discountScope === 'PRODUCT') {
+      const target = product(data.targetItemId, 'Elige el producto con descuento')
+      clean.targetItemId = target.id
+      if (clean.discountAmount !== null && clean.discountAmount >= target.price) {
+        throw new DomainError(`El descuento debe ser menor que el precio de "${target.name}" (${formatMoney(target.price)})`)
+      }
+    } else if (clean.discountScope === 'CATEGORY') {
+      const category = db.catalogItems.find(
+        (i) => i.businessId === ownerId && i.deletedAt === null && sameCategory(i.category, data.targetCategory),
+      )?.category
+      if (!category) throw new DomainError('Elige una categoría de tu catálogo')
+      clean.targetCategory = category
     }
   }
-  const existing = db.birthdayPerks.find((p) => p.businessId === businessId)
-  if (existing) Object.assign(existing, clean, { updatedAt: iso(at) })
-  else db.birthdayPerks.push({ ...clean, businessId, updatedAt: iso(at) })
-  audit(db, actorId, 'BIRTHDAY_PERK_SAVED', 'Business', businessId, at)
+
+  let perk: BirthdayPerk
+  if (existing) {
+    perk = Object.assign(existing, clean, { updatedAt: iso(at) })
+  } else {
+    perk = { ...clean, id: nextId(db, 'birthdayPerks'), businessId: ownerId, updatedAt: iso(at) }
+    db.birthdayPerks.push(perk)
+  }
+  audit(db, actorId, 'BIRTHDAY_PERK_SAVED', 'Business', ownerId, at)
+  return perk
 }
 
-/** Staff hands the business birthday gift: verified birthday today, once a year, with a purchase here today. */
-export function claimBirthdayPerk(db: Database, input: { customerId: number; businessId: number; staffId: number }, at = new Date()) {
-  if (!activeMembership(db, input.staffId, input.businessId)) throw new DomainError('No perteneces a este establecimiento')
-  const perk = db.birthdayPerks.find((p) => p.businessId === input.businessId && p.isActive)
-  if (!perk) throw new DomainError('Tu local no tiene un regalo de cumpleaños activo. El encargado lo configura aquí mismo')
-  const customer = activeCustomer(db, input.customerId, false)
-  if (!customer.birthDate) throw new DomainError(`${customer.firstName} no tiene su cumpleaños verificado. Lo hace desde Mi perfil en la app`)
-  if (!isBirthdayToday(customer, at)) {
-    throw new DomainError(`Hoy no es el cumpleaños de ${customer.firstName} (es el ${formatLongDayKey(customer.birthDate)})`)
+/** Past deliveries keep their description in BirthdayClaim, so a benefit can be deleted for good. */
+export function deleteBirthdayPerk(db: Database, id: number, actorId: number, at = new Date()) {
+  const perk = db.birthdayPerks.find((p) => p.id === id)
+  if (!perk) return
+  if (activeMembership(db, actorId, perk.businessId)?.role !== 'MANAGER') {
+    throw new DomainError('Solo el encargado del establecimiento puede configurar los beneficios de cumpleaños')
   }
-  const year = localYear(at)
-  if (db.birthdayClaims.some((c) => c.userId === customer.id && c.businessId === input.businessId && c.year === year)) {
-    throw new DomainError(`${customer.firstName} ya recibió su regalo de cumpleaños aquí este año`)
-  }
-  const today = todayKey(at)
-  const purchase = db.transactions
-    .filter((t) => t.customerId === customer.id && t.businessId === input.businessId && t.status === 'COMPLETED' && localDateKey(t.createdAt) === today)
-    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0]
-  if (!purchase) throw new DomainError(`Registra primero la compra de hoy de ${customer.firstName} en Registrar compra`)
-  const claim = {
-    id: nextId(db, 'birthdayClaims'),
-    userId: customer.id,
-    businessId: input.businessId,
-    year,
-    transactionId: purchase.id,
-    validatedById: input.staffId,
-    perkTitle: rewardTitle(db, perk).slice(0, 255),
-    createdAt: iso(at),
-  }
-  db.birthdayClaims.push(claim)
-  audit(db, input.staffId, 'BIRTHDAY_PERK_CLAIMED', 'BirthdayClaim', claim.id, at)
-  return { claimId: claim.id, title: claim.perkTitle, customerName: customer.firstName }
+  db.birthdayPerks = db.birthdayPerks.filter((p) => p.id !== id)
+  audit(db, actorId, 'BIRTHDAY_PERK_DELETED', 'Business', perk.businessId, at)
 }
 
 // ==================================================

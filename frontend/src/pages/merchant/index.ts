@@ -1,5 +1,4 @@
 export { RegisterPurchasePage } from './RegisterPurchasePage'
-export { ValidateRedemptionPage } from './ValidateRedemptionPage'
 export { MerchantTransactionsPage } from './MerchantTransactionsPage'
 export { CatalogPage } from './CatalogPage'
 export { MerchantRewardsPage } from './MerchantRewardsPage'

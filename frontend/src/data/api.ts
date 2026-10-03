@@ -105,8 +105,6 @@ export interface IdentifiedCustomer {
   email: string
   nextTier: TierGap | null
   birthdayToday: boolean
-  /** Pending coupons of the customer for the staff member's business, with the code to validate them. */
-  coupons: { redemptionId: number; token: string }[]
 }
 
 export const api = {

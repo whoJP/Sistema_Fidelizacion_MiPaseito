@@ -18,7 +18,7 @@ const GROUPS: { title: string; keys: SettingKey[] }[] = [
   { title: 'Cumpleaños', keys: ['BIRTHDAY_BONUS_POINTS', 'BIRTHDAY_REWARD_MAX_POINTS'] },
   { title: 'Vencimiento de puntos', keys: ['POINTS_EXPIRATION_MONTHS', 'POINTS_EXPIRATION_NOTICE_DAYS'] },
   { title: 'Clientes dormidos y aniversarios', keys: ['REACTIVATION_DAYS', 'AUTO_PROMO_MULTIPLIER', 'AUTO_PROMO_DAYS'] },
-  { title: 'Canjes y seguridad', keys: ['REDEMPTION_EXPIRATION_MINUTES', 'ABNORMAL_AMOUNT_THRESHOLD'] },
+  { title: 'Canjes y seguridad', keys: ['REDEMPTION_EXPIRATION_DAYS', 'ABNORMAL_AMOUNT_THRESHOLD'] },
 ]
 
 export function AdminSettings() {
